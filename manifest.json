@@ -1,0 +1,49 @@
+{
+  "name": "Presupuesto Familiar",
+  "short_name": "Gastos",
+  "description": "Control de gastos en tiempo real para Fabricio y Vanessa",
+  "start_url": "index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4F2EE",
+  "theme_color": "#2A5C1F",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232A5C1F' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-weight='bold'>💰</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232A5C1F' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-weight='bold'>💰</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%23F4F2EE' width='540' height='720'/><rect fill='%232A5C1F' width='540' height='100'/><text x='30' y='60' font-size='24' fill='white' font-family='system-ui' font-weight='bold'>💰 Presupuesto</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Registrar gasto",
+      "short_name": "Nuevo gasto",
+      "description": "Abre la app de presupuesto",
+      "url": "index.html",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%232A5C1F' width='96' height='96'/><text x='50%' y='50%' font-size='60' fill='white' text-anchor='middle' dominant-baseline='middle'>+</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "categories": ["finance", "productivity"]
+}
