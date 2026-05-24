@@ -1441,10 +1441,20 @@ async function loadHistorico() {
   }
   document.getElementById('historico-content').innerHTML = '<div class="empty-state">Cargando historial...</div>';
   try {
-    var r = await fetch(url + '?action=getHistorico');
-    var d = await r.json();
-    if (d.ok) {
-      historicoData = d.historico || [];
+    var mes = getMes();
+    var [r1, r2, r3] = await Promise.all([
+      fetch(url + '?action=getHistorico'),
+      fetch(url + '?action=getBudget&mes=' + mes),
+      fetch(url + '?action=getConfig&mes=' + mes)
+    ]);
+    var [d1, d2, d3] = await Promise.all([r1.json(), r2.json(), r3.json()]);
+    if (d1.ok) {
+      historicoData = d1.historico || [];
+      // Inyectar mes actual con datos en tiempo real
+      if (d2.ok && d2.budgets) {
+        window._mesActualBudget = d2.budgets;
+        window._mesActualConfig = d3.ok ? d3.config : null;
+      }
       renderHistorico();
     } else {
       document.getElementById('historico-content').innerHTML = '<div class="empty-state">Error al cargar historial</div>';
@@ -1470,11 +1480,50 @@ function renderHistorico() {
   var html = '';
   TODOS_MESES.forEach(function(mes) {
     var m = dataMap[mes];
+
+    // Mes actual sin cerrar — mostrar datos en tiempo real
+    if (!m && mes === mesActual && window._mesActualBudget) {
+      var cfg = window._mesActualConfig || {};
+      var ingreso = cfg.ingreso || 44500;
+      var cats = Object.keys(CATS);
+      var totalGastado = cats.reduce(function(s, c) { return s + (window._mesActualBudget[c] || 0); }, 0);
+      var pctIngreso = Math.round(totalGastado / ingreso * 100);
+      var margen = ingreso - totalGastado;
+      var catIcons = { despensa:'🛒', gasolina:'⛽', salidas:'🍽️', amazon:'📦', ropa:'👗', ahorro:'🏦', buffer:'🔧' };
+
+      html += '<div class="hist-card">';
+      html += '<div class="hist-header" style="background:#1a4a10;">';
+      html += '<div><div class="hist-mes">' + mes + ' 2026</div><div class="hist-sub">En curso · actualizado ahora</div></div>';
+      html += '<div style="text-align:right"><div class="hist-total">$' + totalGastado.toLocaleString('es-MX') + '</div>';
+      html += '<div class="hist-pct">' + pctIngreso + '% del ingreso</div></div></div>';
+      html += '<div class="hist-body">';
+      html += '<div class="hist-divider"><span>Ingreso mensual</span><span style="font-family:DM Mono,monospace;color:var(--text);">$' + ingreso.toLocaleString('es-MX') + '</span></div>';
+
+      cats.forEach(function(catId) {
+        var gastado = window._mesActualBudget[catId] || 0;
+        var limite  = cfg[catId] || CATS[catId].limit;
+        var pct     = limite > 0 ? Math.min(Math.round(gastado / limite * 100), 100) : 0;
+        var excedido = gastado > limite;
+        var barColor = excedido ? '#7C1D1D' : '#3D8A2D';
+        html += '<div class="hist-cat-row">';
+        html += '<span class="hist-cat-label">' + (catIcons[catId]||'') + ' ' + CATS[catId].name + '</span>';
+        html += '<div class="hist-cat-right">';
+        html += '<div class="hist-bar-bg"><div class="hist-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>';
+        html += '<span class="hist-amounts">$' + gastado.toLocaleString('es-MX') + ' / $' + limite.toLocaleString('es-MX') + '</span>';
+        html += excedido ? '<span class="hist-badge-red">🔴</span>' : '<span class="hist-badge-ok">✅</span>';
+        html += '</div></div>';
+      });
+
+      html += '<div class="hist-margen"><span style="font-size:12px;color:var(--text2)">Margen del mes</span>';
+      html += '<span style="font-size:13px;font-weight:500;font-family:DM Mono,monospace;color:' + (margen>=0?'var(--green)':'var(--red)') + '">$' + margen.toLocaleString('es-MX') + '</span></div>';
+      html += '</div></div>';
+      return;
+    }
+
     if (!m) {
-      var isPending = mes !== mesActual;
       html += '<div class="hist-card"><div class="hist-header hist-header-pending" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">';
       html += '<div><div class="hist-mes">' + mes + ' 2026</div><div class="hist-sub">Sin datos</div></div>';
-      html += '<span class="hist-pending-badge">' + (mes === mesActual ? 'En curso' : 'Pendiente') + '</span>';
+      html += '<span class="hist-pending-badge">Pendiente</span>';
       html += '</div></div>';
       return;
     }
