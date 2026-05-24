@@ -778,25 +778,44 @@ function buildCatSelector() {
 
 async function refreshDetailPage() {
   const url = localStorage.getItem('script_url');
-  if (!url) return;
   const mes = getMesFromDate(document.getElementById('fecha').value);
   document.getElementById('detail-mes-label').textContent = mes + ' 2026';
 
+  // Mostrar estado de carga inmediatamente
+  const content = document.getElementById('detail-content');
+  if (!selectedDetailCat) {
+    content.innerHTML = '<div class="empty-state">Selecciona una categoría para ver el desglose</div>';
+  } else {
+    content.innerHTML = '<div class="empty-state">Cargando datos...</div>';
+  }
+
+  if (!url) {
+    content.innerHTML = '<div class="empty-state">Configura la URL del script (⚙️)</div>';
+    return;
+  }
+
   try {
-    // Load budget totals for selector badges
-    const r1 = await fetch(url + '?action=getBudget&mes=' + mes);
-    const d1 = await r1.json();
+    // Cargar budget y gastos en paralelo
+    const [r1, r2] = await Promise.all([
+      fetch(url + '?action=getBudget&mes=' + mes),
+      fetch(url + '?action=getGastos&mes=' + mes)
+    ]);
+
+    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+
     if (d1.ok) {
       for (const [cat, val] of Object.entries(d1.budgets || {})) {
-        const el = document.querySelector(`[data-detail-total="${cat}"]`);
+        const el = document.querySelector('[data-detail-total="' + cat + '"]');
         if (el) el.textContent = '$' + (val||0).toLocaleString('es-MX');
       }
     }
-    // Load gastos list
-    const r2 = await fetch(url + '?action=getGastos&mes=' + mes);
-    const d2 = await r2.json();
+
     if (d2.ok) gastosData = d2.gastos || [];
-  } catch(e) {}
+
+  } catch(e) {
+    content.innerHTML = '<div class="empty-state">Error al cargar datos. Verifica tu conexión.</div>';
+    return;
+  }
 
   if (selectedDetailCat) renderDetailContent(selectedDetailCat);
 }
