@@ -978,6 +978,7 @@ function renderDetailContent(catId) {
       html += '<div class="planeado-meta">' + p.fecha + ' · ' + p.quien + '</div>';
       html += '</div>';
       html += '<span class="planeado-monto">$' + p.monto.toLocaleString('es-MX') + '</span>';
+      html += '<button class="edit-btn" style="border-color:#B8860B;color:#7A4F00" onclick="editarPlaneadoIdx(' + pidx + ',\'' + catId + '\')">✏️</button>';
       html += '<button class="delete-btn" style="border-color:#B8860B;color:#7A4F00" onclick="eliminarPlaneadoIdx(' + pidx + ',\'' + catId + '\')">🗑</button>';
       html += '</div>';
     });
@@ -1066,13 +1067,15 @@ async function confirmarEdicion() {
   closeEditModal();
   showStatus('Guardando cambios...', 'loading');
   try {
+    var accion = pendingEdit.esPlaneado ? 'editPlaneado' : 'editGasto';
     var r = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'editGasto', rowIndex: pendingEdit.rowIndex, monto: monto, fecha: fecha, nota: nota, categoria: categoria, token: 'Theend.01' }),
+      body: JSON.stringify({ action: accion, rowIndex: pendingEdit.rowIndex, monto: monto, fecha: fecha, nota: nota, categoria: categoria, token: 'Theend.01' }),
     });
     var d = await r.json();
     if (d.ok) {
       showStatus('Registro actualizado', 'ok');
+      await loadPlaneados();
       await loadDetailPage();
       await loadBudgetData();
     } else { showStatus('Error: ' + (d.error || ''), 'error'); }
@@ -1215,6 +1218,20 @@ async function confirmarVencido() {
   // Scroll to top of page 1
   goToPage(0);
   document.getElementById('pg0').scrollTop = 0;
+}
+
+// ── Editar planeado desde detalle ───────────────────────────
+function editarPlaneadoIdx(pidx, catId) {
+  var filtrados = planeadosData.filter(function(p) { return p.categoria === catId; });
+  var p = filtrados[pidx];
+  if (!p) return;
+  // Guardar rowIndex para poder eliminarlo al confirmar edicion
+  pendingEdit = { rowIndex: p.rowIndex, esPlaneado: true };
+  document.getElementById('edit-monto').value     = p.monto || '';
+  document.getElementById('edit-fecha').value     = (p.fecha || '').split('T')[0];
+  document.getElementById('edit-nota').value      = p.nota || '';
+  document.getElementById('edit-categoria').value = p.categoria || 'despensa';
+  document.getElementById('edit-modal').classList.add('open');
 }
 
 // ── Eliminar planeado desde detalle ──────────────────────────
