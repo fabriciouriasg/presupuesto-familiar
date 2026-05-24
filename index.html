@@ -246,6 +246,13 @@ html, body {
 .gasto-nota { font-size: 13px; font-weight: 500; }
 .gasto-meta { font-size: 11px; color: var(--text2); margin-top: 1px; }
 .gasto-monto { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--green); }
+.edit-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text2); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.edit-btn:hover { border-color: var(--green-mid); background: var(--green-bg); color: var(--green); }
 .delete-btn {
   width: 32px; height: 32px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg);
@@ -315,7 +322,7 @@ html, body {
   <div class="topbar">
     <div>
       <div class="topbar-title">💰 Presupuesto Familiar</div>
-      <div class="topbar-sub">Mayo – Agosto 2026</div>
+      <div class="topbar-sub">Mayo – Agosto 2026 &nbsp;·&nbsp; <span id="dias-restantes"></span></div>
     </div>
     <div class="who-toggle">
       <button class="who-btn active" onclick="setQuien('Fabricio',this)">Fabricio</button>
@@ -411,6 +418,44 @@ html, body {
 <!-- FAB -->
 <div class="config-fab" onclick="openConfig()">⚙️</div>
 
+<!-- Modal: editar -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditModal()">&#x2715;</button>
+    <h2>Editar registro</h2>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <div>
+        <div class="field-label" style="margin-bottom:6px">Monto</div>
+        <input id="edit-monto" type="number" inputmode="decimal" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:DM Mono,monospace;font-size:18px;background:var(--bg);color:var(--text);outline:none">
+      </div>
+      <div>
+        <div class="field-label" style="margin-bottom:6px">Fecha</div>
+        <input id="edit-fecha" type="date" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;background:var(--bg);color:var(--text);outline:none">
+      </div>
+      <div>
+        <div class="field-label" style="margin-bottom:6px">Categoria</div>
+        <select id="edit-categoria" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;background:var(--bg);color:var(--text);outline:none">
+          <option value="despensa">Despensa / hogar</option>
+          <option value="gasolina">Gasolina / Uber</option>
+          <option value="salidas">Salidas y comida</option>
+          <option value="amazon">Amazon / compras</option>
+          <option value="ropa">Ropa / personal</option>
+          <option value="ahorro">Ahorro / INFONAVIT</option>
+          <option value="buffer">Buffer / imprevistos</option>
+        </select>
+      </div>
+      <div>
+        <div class="field-label" style="margin-bottom:6px">Nota</div>
+        <input id="edit-nota" type="text" placeholder="Nota" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;background:var(--bg);color:var(--text);outline:none">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeEditModal()">Cancelar</button>
+      <button class="modal-confirm" style="background:var(--green)" onclick="confirmarEdicion()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: borrar -->
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
@@ -502,6 +547,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (url) document.getElementById('script-url').value = url;
   if (!url) setTimeout(openConfig, 600);
 
+  updateDiasRestantes();
   buildCatSelector();
   renderLog();
   loadBudgetData();
@@ -511,6 +557,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fecha').addEventListener('change', loadBudgetData);
   document.getElementById('config-modal').addEventListener('click', e => { if (e.target.id==='config-modal') closeConfig(); });
   document.getElementById('delete-modal').addEventListener('click',  e => { if (e.target.id==='delete-modal')  closeDeleteModal(); });
+  document.getElementById('edit-modal').addEventListener('click', e => { if (e.target.id==='edit-modal') closeEditModal(); });
 });
 
 // ── Swipe ───────────────────────────────────────────────────
@@ -810,6 +857,58 @@ async function confirmarBorrado() {
       await loadDetailPage();
       await loadBudgetData();
     } else { showStatus('Error: ' + (d.error||''), 'error'); }
+  } catch(e) { showStatus('Error de conexion', 'error'); }
+}
+
+// ── Dias restantes ───────────────────────────────────────────
+function updateDiasRestantes() {
+  var hoy = new Date();
+  var ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  var restantes = ultimoDia - hoy.getDate();
+  var el = document.getElementById('dias-restantes');
+  if (!el) return;
+  if (restantes === 0) el.textContent = 'Ultimo dia del mes';
+  else if (restantes === 1) el.textContent = 'Queda 1 dia';
+  else el.textContent = 'Quedan ' + restantes + ' dias';
+}
+
+// ── Editar registro ───────────────────────────────────────────
+var pendingEdit = null;
+
+function abrirEdicion(rowIndex, nota, monto, fecha, categoria) {
+  pendingEdit = { rowIndex: rowIndex };
+  document.getElementById('edit-monto').value    = monto;
+  document.getElementById('edit-fecha').value     = fecha;
+  document.getElementById('edit-nota').value      = nota;
+  document.getElementById('edit-categoria').value = categoria;
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  pendingEdit = null;
+}
+async function confirmarEdicion() {
+  if (!pendingEdit) return;
+  var url = localStorage.getItem('script_url');
+  var monto     = parseFloat(document.getElementById('edit-monto').value);
+  var fecha     = document.getElementById('edit-fecha').value;
+  var nota      = document.getElementById('edit-nota').value.trim();
+  var categoria = document.getElementById('edit-categoria').value;
+  if (!monto || monto <= 0) { alert('Ingresa un monto valido'); return; }
+  if (!fecha) { alert('Ingresa la fecha'); return; }
+  closeEditModal();
+  showStatus('Guardando cambios...', 'loading');
+  try {
+    var r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'editGasto', rowIndex: pendingEdit.rowIndex, monto: monto, fecha: fecha, nota: nota, categoria: categoria, token: 'Theend.01' }),
+    });
+    var d = await r.json();
+    if (d.ok) {
+      showStatus('Registro actualizado', 'ok');
+      await loadDetailPage();
+      await loadBudgetData();
+    } else { showStatus('Error: ' + (d.error || ''), 'error'); }
   } catch(e) { showStatus('Error de conexion', 'error'); }
 }
 
