@@ -941,27 +941,50 @@ function renderDetailContent(catId) {
   // Guardar en variable global para acceso por indice
   window._gastosActuales = gastos;
 
-  content.innerHTML =
-    '<div class="detail-card">' +
-      '<div class="detail-card-header"><h3>' + cat.icon + ' ' + cat.name + '</h3><span class="total-badge">$' + total.toLocaleString('es-MX') + '</span></div>' +
-      labels.map((lbl, i) =>
-        '<div class="week-row"><span class="week-label">' + lbl + '</span><span class="week-amount">$' + weekTotals[i].toLocaleString('es-MX') + '</span></div>'
-      ).join('') +
-      '<div class="gastos-list-header">Registros individuales</div>' +
-      (gastos.length === 0
-        ? '<div class="empty-state">Sin gastos en esta categoria</div>'
-        : gastos.map((g, idx) =>
-            '<div class="gasto-item">' +
-              '<div class="gasto-info">' +
-                '<div class="gasto-nota">' + (g.nota || cat.name) + '</div>' +
-                '<div class="gasto-meta">' + g.fecha + ' - ' + g.quien + '</div>' +
-              '</div>' +
-              '<span class="gasto-monto">$' + g.monto.toLocaleString('es-MX') + '</span>' +
-              '<button class="edit-btn" onclick="abrirEdicionIdx(' + idx + ')">✏️</button>' +
-              '<button class="delete-btn" onclick="solicitarBorradoIdx(' + idx + ')">🗑</button>' +
-            '</div>'
-          ).join('')) +
-    '</div>';
+  // Planeados de esta categoria
+  var hoy2 = new Date().toISOString().split('T')[0];
+  var planeadosCat = planeadosData.filter(function(p) { return p.categoria === catId; });
+
+  var html = '<div class="detail-card">';
+  html += '<div class="detail-card-header"><h3>' + cat.icon + ' ' + cat.name + '</h3><span class="total-badge">$' + total.toLocaleString('es-MX') + '</span></div>';
+  labels.forEach(function(lbl, i) {
+    html += '<div class="week-row"><span class="week-label">' + lbl + '</span><span class="week-amount">$' + weekTotals[i].toLocaleString('es-MX') + '</span></div>';
+  });
+  html += '<div class="gastos-list-header">Registros individuales</div>';
+  if (gastos.length === 0) {
+    html += '<div class="empty-state">Sin gastos en esta categoria</div>';
+  } else {
+    gastos.forEach(function(g, idx) {
+      html += '<div class="gasto-item">';
+      html += '<div class="gasto-info">';
+      html += '<div class="gasto-nota">' + (g.nota || cat.name) + '</div>';
+      html += '<div class="gasto-meta">' + g.fecha + ' - ' + g.quien + '</div>';
+      html += '</div>';
+      html += '<span class="gasto-monto">$' + g.monto.toLocaleString('es-MX') + '</span>';
+      html += '<button class="edit-btn" onclick="abrirEdicionIdx(' + idx + ')">✏️</button>';
+      html += '<button class="delete-btn" onclick="solicitarBorradoIdx(' + idx + ')">🗑</button>';
+      html += '</div>';
+    });
+  }
+
+  // Seccion de planeados en amarillo
+  if (planeadosCat.length > 0) {
+    html += '<div class="planeados-header">📅 Gastos planeados</div>';
+    planeadosCat.forEach(function(p, pidx) {
+      var vencido = p.fecha < hoy2;
+      html += '<div class="planeado-item">';
+      html += '<div class="planeado-info">';
+      html += '<div class="planeado-nota">' + (p.nota || cat.name) + (vencido ? ' ⚠️' : '') + '</div>';
+      html += '<div class="planeado-meta">' + p.fecha + ' · ' + p.quien + '</div>';
+      html += '</div>';
+      html += '<span class="planeado-monto">$' + p.monto.toLocaleString('es-MX') + '</span>';
+      html += '<button class="delete-btn" style="border-color:#B8860B;color:#7A4F00" onclick="eliminarPlaneadoIdx(' + pidx + ',\'' + catId + '\')">🗑</button>';
+      html += '</div>';
+    });
+  }
+
+  html += '</div>';
+  content.innerHTML = html;
 }
 
 // ── Helpers por indice ───────────────────────────────────────
