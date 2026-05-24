@@ -390,6 +390,27 @@ html, body {
   text-align: center; font-size: 11px; color: var(--text3); margin-top: 12px;
 }
 
+/* ── Historico ── */
+.hist-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+.hist-header { background: var(--green); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+.hist-header-pending { background: #888780; }
+.hist-mes { color: #fff; font-size: 14px; font-weight: 500; }
+.hist-sub { color: rgba(255,255,255,.65); font-size: 11px; margin-top: 1px; }
+.hist-total { color: #fff; font-size: 15px; font-weight: 500; font-family: DM Mono, monospace; }
+.hist-pct { background: rgba(255,255,255,.2); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 20px; margin-top: 3px; text-align: right; }
+.hist-body { padding: 10px 14px; }
+.hist-divider { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); padding-bottom: 8px; margin-bottom: 8px; border-bottom: 0.5px solid var(--border); }
+.hist-cat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.hist-cat-label { font-size: 12px; color: var(--text2); }
+.hist-cat-right { display: flex; align-items: center; gap: 8px; }
+.hist-bar-bg { width: 70px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.hist-bar-fill { height: 100%; border-radius: 2px; }
+.hist-amounts { font-size: 11px; font-family: DM Mono, monospace; color: var(--text); min-width: 90px; text-align: right; }
+.hist-badge-ok  { font-size: 10px; padding: 2px 6px; border-radius: 20px; background: var(--green-bg); color: var(--green); }
+.hist-badge-red { font-size: 10px; padding: 2px 6px; border-radius: 20px; background: var(--red-bg); color: var(--red); }
+.hist-margen { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.hist-pending-badge { background: rgba(255,255,255,.2); color: #fff; font-size: 10px; padding: 4px 10px; border-radius: 20px; }
+
 .config-fab {
   position: fixed; bottom: 20px; right: 20px;
   width: 44px; height: 44px; background: var(--surface);
@@ -417,6 +438,7 @@ html, body {
   <div class="tab-bar">
     <div class="tab-dot active" onclick="goToPage(0)"></div>
     <div class="tab-dot" onclick="goToPage(1)"></div>
+    <div class="tab-dot" onclick="goToPage(2)"></div>
   </div>
 </div>
 
@@ -510,11 +532,52 @@ html, body {
       </div>
     </div>
 
+    <!-- PÁGINA 3: Historial -->
+    <div class="page" id="pg2">
+      <div class="inner">
+        <div class="detail-title">Historial mensual</div>
+        <div class="detail-sub">Resumen de meses cerrados</div>
+        <div id="historico-content">
+          <div class="empty-state">Cargando historial...</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <!-- FAB -->
 <div class="config-fab" onclick="openConfig()">⚙️</div>
+
+<!-- Popup: configuracion inicio de mes -->
+<div class="modal-overlay" id="config-mes-overlay">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;">
+    <button class="modal-close" onclick="closeConfigMes()">&#x2715;</button>
+    <div style="display:inline-block;background:#EBF4E7;color:#2A5C1F;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;margin-bottom:12px;letter-spacing:.05em;text-transform:uppercase;">Inicio de mes</div>
+    <h2 id="config-mes-titulo">Configurar objetivos</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5;">Revisa y ajusta los límites para este mes. Solo puedes modificarlos una vez.</p>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      <div style="background:#EBF4E7;border:1.5px solid #3D8A2D;border-radius:10px;padding:12px 14px;">
+        <div class="field-label" style="margin-bottom:6px;color:#2A5C1F;">💰 Ingreso mensual</div>
+        <input id="cfg-ingreso" type="number" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:16px;background:var(--bg);color:var(--text);outline:none;">
+      </div>
+      <div class="field-label" style="margin-bottom:0">Límites por categoría</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">🛒 Despensa</div><input id="cfg-despensa" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">⛽ Gasolina</div><input id="cfg-gasolina" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">🍽️ Salidas</div><input id="cfg-salidas" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">📦 Amazon</div><input id="cfg-amazon" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">👗 Ropa</div><input id="cfg-ropa" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">🏦 Ahorro</div><input id="cfg-ahorro" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+        <div style="grid-column:span 2"><div style="font-size:11px;color:var(--text2);margin-bottom:4px;">🔧 Buffer</div><input id="cfg-buffer" type="number" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></div>
+      </div>
+    </div>
+
+    <button onclick="guardarConfigMes()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:12px;font-family:DM Sans,sans-serif;font-size:15px;font-weight:500;cursor:pointer;">Confirmar objetivos del mes</button>
+    <div id="config-mes-status" style="margin-top:10px;font-size:13px;text-align:center;color:var(--text2);"></div>
+  </div>
+</div>
 
 <!-- Popup: vencidos -->
 <div class="vencido-overlay" id="vencido-overlay">
@@ -670,6 +733,7 @@ window.addEventListener('DOMContentLoaded', () => {
   updateDiasRestantes();
   buildCatSelector();
   loadPlaneados();
+  loadConfig();
   renderLog();
   loadBudgetData();
   setupSwipe();
@@ -679,6 +743,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('config-modal').addEventListener('click', e => { if (e.target.id==='config-modal') closeConfig(); });
   document.getElementById('delete-modal').addEventListener('click',  e => { if (e.target.id==='delete-modal')  closeDeleteModal(); });
   document.getElementById('edit-modal').addEventListener('click', e => { if (e.target.id==='edit-modal') closeEditModal(); });
+  document.getElementById('config-mes-overlay').addEventListener('click', e => { if (e.target.id==='config-mes-overlay') closeConfigMes(); });
 });
 
 // ── Swipe ───────────────────────────────────────────────────
@@ -698,7 +763,9 @@ function setupSwipe() {
     const dy = Math.abs(e.changedTouches[0].clientY - startY);
     if (Math.abs(dx) > 40 && Math.abs(dx) > dy * 1.2) {
       if (dx < 0 && currentPage === 0) goToPage(1);
+      else if (dx < 0 && currentPage === 1) goToPage(2);
       else if (dx > 0 && currentPage === 1) goToPage(0);
+      else if (dx > 0 && currentPage === 2) goToPage(1);
     }
   }, { passive: true });
 
@@ -713,6 +780,7 @@ function goToPage(idx) {
   document.getElementById('pages-wrap').style.transform = 'translateX(-' + (idx * 100) + 'vw)';
   document.querySelectorAll('.tab-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
   if (idx === 1) loadDetailPage();
+  if (idx === 2) loadHistorico();
 }
 
 // ── Quién ───────────────────────────────────────────────────
@@ -1265,6 +1333,187 @@ async function eliminarPlaneadoIdx(pidx, catId) {
     await loadPlaneados();
     await loadDetailPage();
   } catch(e) { showStatus('Error al eliminar planeado', 'error'); }
+}
+
+// ── Configuracion mensual ────────────────────────────────────
+var configActual = null;
+
+async function loadConfig() {
+  var url = localStorage.getItem('script_url');
+  if (!url) return;
+  var mes = getMes();
+  try {
+    var r = await fetch(url + '?action=getConfig&mes=' + mes);
+    var d = await r.json();
+    if (d.ok && d.config) {
+      configActual = d.config;
+      aplicarConfig(d.config);
+      checkConfigMes(d.config);
+    }
+  } catch(e) {}
+}
+
+function aplicarConfig(cfg) {
+  if (!cfg) return;
+  // Actualizar limites dinamicamente
+  CATS.despensa.limit = cfg.despensa || 6000;
+  CATS.gasolina.limit = cfg.gasolina || 3000;
+  CATS.salidas.limit  = cfg.salidas  || 5700;
+  CATS.amazon.limit   = cfg.amazon   || 1500;
+  CATS.ropa.limit     = cfg.ropa     || 500;
+  CATS.ahorro.limit   = cfg.ahorro   || 3020;
+  CATS.buffer.limit   = cfg.buffer   || 1500;
+  updateBadges();
+  updateAjustadoBadges();
+}
+
+function checkConfigMes(cfg) {
+  // Mostrar popup si es dia 1 del mes y no esta confirmado
+  var hoy = new Date();
+  var esdia1 = hoy.getDate() === 1;
+  var yaConfirmado = cfg && cfg.confirmado;
+  if (esdia1 && !yaConfirmado) {
+    abrirConfigMes(cfg);
+  }
+}
+
+function abrirConfigMes(cfg) {
+  var mes = getMes();
+  document.getElementById('config-mes-titulo').textContent = 'Objetivos de ' + mes + ' 2026';
+  var c = cfg || {};
+  document.getElementById('cfg-ingreso').value  = c.ingreso  || 44500;
+  document.getElementById('cfg-despensa').value = c.despensa || 6000;
+  document.getElementById('cfg-gasolina').value = c.gasolina || 3000;
+  document.getElementById('cfg-salidas').value  = c.salidas  || 5700;
+  document.getElementById('cfg-amazon').value   = c.amazon   || 1500;
+  document.getElementById('cfg-ropa').value     = c.ropa     || 500;
+  document.getElementById('cfg-ahorro').value   = c.ahorro   || 3020;
+  document.getElementById('cfg-buffer').value   = c.buffer   || 1500;
+  document.getElementById('config-mes-overlay').classList.add('open');
+}
+
+function closeConfigMes() {
+  document.getElementById('config-mes-overlay').classList.remove('open');
+}
+
+async function guardarConfigMes() {
+  var url = localStorage.getItem('script_url');
+  if (!url) { document.getElementById('config-mes-status').textContent = 'Configura la URL del script primero'; return; }
+  var mes = getMes();
+  var body = {
+    action:   'saveConfig',
+    token:    'Theend.01',
+    mes:      mes,
+    ingreso:  parseFloat(document.getElementById('cfg-ingreso').value)  || 44500,
+    despensa: parseFloat(document.getElementById('cfg-despensa').value) || 6000,
+    gasolina: parseFloat(document.getElementById('cfg-gasolina').value) || 3000,
+    salidas:  parseFloat(document.getElementById('cfg-salidas').value)  || 5700,
+    amazon:   parseFloat(document.getElementById('cfg-amazon').value)   || 1500,
+    ropa:     parseFloat(document.getElementById('cfg-ropa').value)     || 500,
+    ahorro:   parseFloat(document.getElementById('cfg-ahorro').value)   || 3020,
+    buffer:   parseFloat(document.getElementById('cfg-buffer').value)   || 1500,
+  };
+  document.getElementById('config-mes-status').textContent = 'Guardando...';
+  try {
+    var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) });
+    var d = await r.json();
+    if (d.ok) {
+      aplicarConfig(body);
+      closeConfigMes();
+      showStatus('Objetivos de ' + mes + ' confirmados', 'ok');
+      loadBudgetData();
+    } else {
+      document.getElementById('config-mes-status').textContent = 'Error: ' + (d.error || '');
+    }
+  } catch(e) {
+    document.getElementById('config-mes-status').textContent = 'Error de conexion';
+  }
+}
+
+// ── Historico ─────────────────────────────────────────────────
+var historicoData = [];
+
+async function loadHistorico() {
+  var url = localStorage.getItem('script_url');
+  if (!url) {
+    document.getElementById('historico-content').innerHTML = '<div class="empty-state">Configura la URL del script (⚙️)</div>';
+    return;
+  }
+  document.getElementById('historico-content').innerHTML = '<div class="empty-state">Cargando historial...</div>';
+  try {
+    var r = await fetch(url + '?action=getHistorico');
+    var d = await r.json();
+    if (d.ok) {
+      historicoData = d.historico || [];
+      renderHistorico();
+    } else {
+      document.getElementById('historico-content').innerHTML = '<div class="empty-state">Error al cargar historial</div>';
+    }
+  } catch(e) {
+    document.getElementById('historico-content').innerHTML = '<div class="empty-state">Error de conexion</div>';
+  }
+}
+
+function renderHistorico() {
+  var el = document.getElementById('historico-content');
+  var TODOS_MESES = ['Mayo', 'Junio', 'Julio', 'Agosto'];
+  var mesActual = getMes();
+
+  if (historicoData.length === 0) {
+    el.innerHTML = '<div class="empty-state">No hay meses cerrados aun.<br>El historial se genera automaticamente el ultimo dia de cada mes.</div>';
+    return;
+  }
+
+  var dataMap = {};
+  historicoData.forEach(function(m) { dataMap[m.mes] = m; });
+
+  var html = '';
+  TODOS_MESES.forEach(function(mes) {
+    var m = dataMap[mes];
+    if (!m) {
+      var isPending = mes !== mesActual;
+      html += '<div class="hist-card"><div class="hist-header hist-header-pending" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">';
+      html += '<div><div class="hist-mes">' + mes + ' 2026</div><div class="hist-sub">Sin datos</div></div>';
+      html += '<span class="hist-pending-badge">' + (mes === mesActual ? 'En curso' : 'Pendiente') + '</span>';
+      html += '</div></div>';
+      return;
+    }
+
+    var cfg = m.config || {};
+    var ingreso = cfg.ingreso || 44500;
+    var totalGastado = m.categorias.reduce(function(s, c) { return s + c.gastado; }, 0);
+    var pctIngreso = Math.round(totalGastado / ingreso * 100);
+    var margen = ingreso - totalGastado;
+
+    html += '<div class="hist-card">';
+    html += '<div class="hist-header"><div><div class="hist-mes">' + mes + ' 2026</div></div>';
+    html += '<div style="text-align:right"><div class="hist-total">$' + totalGastado.toLocaleString('es-MX') + '</div>';
+    html += '<div class="hist-pct">' + pctIngreso + '% del ingreso</div></div></div>';
+    html += '<div class="hist-body">';
+    html += '<div class="hist-divider"><span>Ingreso mensual</span><span style="font-family:DM Mono,monospace;color:var(--text);">$' + ingreso.toLocaleString('es-MX') + '</span></div>';
+
+    var catIcons = { despensa:'🛒', gasolina:'⛽', salidas:'🍽️', amazon:'📦', ropa:'👗', ahorro:'🏦', buffer:'🔧' };
+    m.categorias.forEach(function(c) {
+      var limite = cfg[c.categoria] || c.limite;
+      var pct = limite > 0 ? Math.min(Math.round(c.gastado / limite * 100), 100) : 0;
+      var excedido = c.gastado > limite;
+      var barColor = excedido ? '#7C1D1D' : '#3D8A2D';
+      var icon = catIcons[c.categoria] || '';
+      html += '<div class="hist-cat-row">';
+      html += '<span class="hist-cat-label">' + icon + ' ' + (CATS[c.categoria]||{name:c.categoria}).name + '</span>';
+      html += '<div class="hist-cat-right">';
+      html += '<div class="hist-bar-bg"><div class="hist-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>';
+      html += '<span class="hist-amounts">$' + c.gastado.toLocaleString('es-MX') + ' / $' + limite.toLocaleString('es-MX') + '</span>';
+      html += excedido ? '<span class="hist-badge-red">🔴</span>' : '<span class="hist-badge-ok">✅</span>';
+      html += '</div></div>';
+    });
+
+    html += '<div class="hist-margen"><span style="font-size:12px;color:var(--text2)">Margen del mes</span>';
+    html += '<span style="font-size:13px;font-weight:500;font-family:DM Mono,monospace;color:' + (margen >= 0 ? 'var(--green)' : 'var(--red)') + '">$' + margen.toLocaleString('es-MX') + '</span></div>';
+    html += '</div></div>';
+  });
+
+  el.innerHTML = html;
 }
 
 // ── Config ───────────────────────────────────────────────────
