@@ -307,6 +307,89 @@ html, body {
   border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer;
 }
 
+/* ── Toggle Real/Planeado ── */
+.tipo-toggle {
+  display: flex;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 16px;
+  gap: 3px;
+}
+.tipo-btn {
+  flex: 1; padding: 8px; border: none; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s; background: transparent; color: var(--text2);
+}
+.tipo-btn.active-real { background: var(--green); color: #fff; }
+.tipo-btn.active-plan { background: #B8860B; color: #fff; }
+
+/* ── Planeados en categorias ── */
+.cat-ajustado {
+  font-size: 10px; font-weight: 500; letter-spacing: .05em;
+  text-transform: uppercase; color: #B8860B; font-family: 'DM Mono', monospace;
+  display: none;
+}
+.cat-ajustado.visible { display: block; }
+
+/* ── Planeados en detalle ── */
+.planeados-header {
+  font-size: 10px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: #B8860B;
+  padding: 10px 16px 6px; border-top: 1px solid var(--border);
+  background: #FFFBEB;
+}
+.planeado-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: #FFFBEB;
+}
+.planeado-item:last-child { border-bottom: none; }
+.planeado-info { flex: 1; }
+.planeado-nota { font-size: 13px; font-weight: 500; color: #7A4F00; }
+.planeado-meta { font-size: 11px; color: #B8860B; margin-top: 1px; }
+.planeado-monto { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: #7A4F00; }
+.confirm-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid #B8860B; background: #FFFBEB;
+  color: #7A4F00; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.confirm-btn:hover { background: #7A4F00; color: #fff; }
+
+/* ── Popup vencidos ── */
+.vencido-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.55); z-index: 300;
+  align-items: flex-end; justify-content: center;
+}
+.vencido-overlay.open { display: flex; }
+.vencido-modal {
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  padding: 24px 20px 40px; width: 100%; max-width: 480px;
+}
+.vencido-badge {
+  display: inline-block; background: #FEF3C7; color: #92400E;
+  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+  margin-bottom: 12px; letter-spacing: .05em; text-transform: uppercase;
+}
+.vencido-modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.vencido-modal p  { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.5; }
+.vencido-actions { display: flex; gap: 10px; }
+.vencido-cancel {
+  flex: 1; padding: 13px; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--bg); font-family: 'DM Sans', sans-serif; font-size: 14px;
+  font-weight: 500; cursor: pointer; color: var(--red);
+}
+.vencido-confirm {
+  flex: 1; padding: 13px; border: none; background: var(--green); border-radius: 10px;
+  color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.vencido-counter {
+  text-align: center; font-size: 11px; color: var(--text3); margin-top: 12px;
+}
+
 .config-fab {
   position: fixed; bottom: 20px; right: 20px;
   width: 44px; height: 44px; background: var(--surface);
@@ -351,35 +434,48 @@ html, body {
             <input class="monto-input" id="monto" type="number" inputmode="decimal" placeholder="0" min="0">
           </div>
 
+          <!-- Toggle Real / Planeado -->
+          <div class="tipo-toggle">
+            <button class="tipo-btn active-real" id="btn-real" onclick="setTipo('real')">💸 Gasto real</button>
+            <button class="tipo-btn" id="btn-plan" onclick="setTipo('planeado')">📅 Gasto planeado</button>
+          </div>
+
           <div class="field-label">Categoría</div>
           <div class="cat-grid">
             <button class="cat-btn" onclick="selectCat('despensa',this)">
               <div class="cat-content"><span class="cat-icon">🛒</span><span>Despensa / hogar</span></div>
               <span class="cat-remaining" data-cat="despensa">—</span>
+              <span class="cat-ajustado" data-ajustado="despensa"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('gasolina',this)">
               <div class="cat-content"><span class="cat-icon">⛽</span><span>Gasolina / Uber</span></div>
               <span class="cat-remaining" data-cat="gasolina">—</span>
+              <span class="cat-ajustado" data-ajustado="gasolina"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('salidas',this)">
               <div class="cat-content"><span class="cat-icon">🍽️</span><span>Salidas y comida</span></div>
               <span class="cat-remaining" data-cat="salidas">—</span>
+              <span class="cat-ajustado" data-ajustado="salidas"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('amazon',this)">
               <div class="cat-content"><span class="cat-icon">📦</span><span>Amazon / compras</span></div>
               <span class="cat-remaining" data-cat="amazon">—</span>
+              <span class="cat-ajustado" data-ajustado="amazon"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('ropa',this)">
               <div class="cat-content"><span class="cat-icon">👗</span><span>Ropa / personal</span></div>
               <span class="cat-remaining" data-cat="ropa">—</span>
+              <span class="cat-ajustado" data-ajustado="ropa"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('ahorro',this)">
               <div class="cat-content"><span class="cat-icon">🏦</span><span>Ahorro / INFONAVIT</span></div>
               <span class="cat-remaining" data-cat="ahorro">—</span>
+              <span class="cat-ajustado" data-ajustado="ahorro"></span>
             </button>
             <button class="cat-btn" onclick="selectCat('buffer',this)" style="grid-column:span 2">
               <div class="cat-content"><span class="cat-icon">🔧</span><span>Buffer / imprevistos</span></div>
               <span class="cat-remaining" data-cat="buffer">—</span>
+              <span class="cat-ajustado" data-ajustado="buffer"></span>
             </button>
           </div>
 
@@ -419,6 +515,20 @@ html, body {
 
 <!-- FAB -->
 <div class="config-fab" onclick="openConfig()">⚙️</div>
+
+<!-- Popup: vencidos -->
+<div class="vencido-overlay" id="vencido-overlay">
+  <div class="vencido-modal">
+    <div class="vencido-badge">⚠️ Gasto planeado vencido</div>
+    <h2 id="vencido-titulo">Salida con amigos</h2>
+    <p id="vencido-desc">Este gasto estaba planeado para ayer. ¿Qué pasó?</p>
+    <div class="vencido-actions">
+      <button class="vencido-cancel" onclick="cancelarVencido()">🗑 No ocurrió</button>
+      <button class="vencido-confirm" onclick="confirmarVencido()">✅ Sí ocurrió</button>
+    </div>
+    <div class="vencido-counter" id="vencido-counter"></div>
+  </div>
+</div>
 
 <!-- Modal: editar -->
 <div class="modal-overlay" id="edit-modal">
@@ -551,6 +661,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   updateDiasRestantes();
   buildCatSelector();
+  loadPlaneados();
   renderLog();
   loadBudgetData();
   setupSwipe();
@@ -646,6 +757,7 @@ function updateBadges() {
     if (rem >= 0) { badge.textContent = 'Disponible: $' + rem.toLocaleString('es-MX'); badge.classList.remove('excedido'); }
     else          { badge.textContent = 'Excedido: -$' + Math.abs(rem).toLocaleString('es-MX'); badge.classList.add('excedido'); }
   }
+  updateAjustadoBadges();
 }
 
 // ── Polling ──────────────────────────────────────────────────
@@ -690,20 +802,29 @@ async function enviarGasto() {
   if (!monto||monto<=0) { showStatus('Ingresa un monto valido', 'error'); return; }
   if (!selectedCat)  { showStatus('Selecciona una categoria', 'error'); return; }
   if (!fecha)        { showStatus('Ingresa la fecha', 'error'); return; }
+
+  // Validar fecha futura para planeados
+  var hoy = new Date().toISOString().split('T')[0];
+  if (tipoGasto === 'planeado' && fecha <= hoy) {
+    showStatus('Los gastos planeados deben tener fecha futura', 'error'); return;
+  }
+
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
-  showStatus('Registrando...', 'loading');
+  var accion = tipoGasto === 'planeado' ? 'savePlaneado' : 'registrar';
+  showStatus(tipoGasto === 'planeado' ? 'Guardando planeado...' : 'Registrando...', 'loading');
   try {
     const r = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ fecha, categoria: selectedCat, monto, quien, nota, token: 'Theend.01' }),
+      body: JSON.stringify({ action: accion, fecha, categoria: selectedCat, monto, quien, nota, token: 'Theend.01' }),
     });
     const d = await r.json();
     if (d.ok) {
       showStatus(d.mensaje, 'ok');
-      addLog({ fecha, cat: selectedCat, monto, quien });
+      if (tipoGasto === 'real') addLog({ fecha, cat: selectedCat, monto, quien });
       limpiarForm();
-      setTimeout(loadBudgetData, 500);
+      setTipo('real');
+      setTimeout(function() { loadBudgetData(); loadPlaneados(); }, 500);
     } else { showStatus('Error: ' + (d.error||''), 'error'); }
   } catch(e) { showStatus('No se pudo conectar', 'error'); }
   btn.disabled = false;
@@ -933,6 +1054,160 @@ async function confirmarEdicion() {
       await loadBudgetData();
     } else { showStatus('Error: ' + (d.error || ''), 'error'); }
   } catch(e) { showStatus('Error de conexion', 'error'); }
+}
+
+// ── Tipo de gasto (real / planeado) ─────────────────────────
+var tipoGasto = 'real';
+function setTipo(tipo) {
+  tipoGasto = tipo;
+  var btnReal = document.getElementById('btn-real');
+  var btnPlan = document.getElementById('btn-plan');
+  btnReal.className = 'tipo-btn' + (tipo === 'real' ? ' active-real' : '');
+  btnPlan.className = 'tipo-btn' + (tipo === 'planeado' ? ' active-plan' : '');
+
+  // Validar que la fecha sea futura si es planeado
+  if (tipo === 'planeado') {
+    var fechaEl = document.getElementById('fecha');
+    var hoy = new Date().toISOString().split('T')[0];
+    if (fechaEl.value <= hoy) {
+      var manana = new Date();
+      manana.setDate(manana.getDate() + 1);
+      fechaEl.value = manana.toISOString().split('T')[0];
+    }
+    fechaEl.min = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  } else {
+    document.getElementById('fecha').min = '';
+  }
+}
+
+// ── Planeados data ────────────────────────────────────────────
+var planeadosData = [];
+
+async function loadPlaneados() {
+  var url = localStorage.getItem('script_url');
+  if (!url) return;
+  try {
+    var r = await fetch(url + '?action=getPlaneados');
+    var d = await r.json();
+    if (d.ok) {
+      planeadosData = d.planeados || [];
+      updateAjustadoBadges();
+      checkVencidos();
+    }
+  } catch(e) {}
+}
+
+function updateAjustadoBadges() {
+  var hoy = new Date().toISOString().split('T')[0];
+  // Solo planeados futuros afectan el margen ajustado
+  var futuros = planeadosData.filter(function(p) { return p.fecha > hoy; });
+
+  for (var cat of Object.keys(CATS)) {
+    var gastado   = budgetData[cat] || 0;
+    var planeado  = futuros.filter(function(p) { return p.categoria === cat; }).reduce(function(s, p) { return s + p.monto; }, 0);
+    var ajustado  = CATS[cat].limit - gastado - planeado;
+    var badgeEl   = document.querySelector('[data-ajustado="' + cat + '"]');
+    if (!badgeEl) continue;
+
+    if (planeado > 0) {
+      badgeEl.classList.add('visible');
+      badgeEl.textContent = 'Ajustado: $' + ajustado.toLocaleString('es-MX');
+    } else {
+      badgeEl.classList.remove('visible');
+      badgeEl.textContent = '';
+    }
+  }
+}
+
+// ── Vencidos ──────────────────────────────────────────────────
+var vencidosPendientes = [];
+var vencidoActualIdx   = 0;
+
+function checkVencidos() {
+  var hoy = new Date().toISOString().split('T')[0];
+  vencidosPendientes = planeadosData.filter(function(p) { return p.fecha < hoy; });
+  if (vencidosPendientes.length > 0) {
+    vencidoActualIdx = 0;
+    mostrarVencido();
+  }
+}
+
+function mostrarVencido() {
+  if (vencidoActualIdx >= vencidosPendientes.length) {
+    document.getElementById('vencido-overlay').classList.remove('open');
+    loadPlaneados();
+    return;
+  }
+  var v = vencidosPendientes[vencidoActualIdx];
+  var restantes = vencidosPendientes.length - vencidoActualIdx;
+  document.getElementById('vencido-titulo').textContent = (v.nota || CATS[v.categoria].name) + ' — $' + v.monto.toLocaleString('es-MX');
+  document.getElementById('vencido-desc').textContent = 'Este gasto estaba planeado para el ' + v.fecha + ' en ' + CATS[v.categoria].name + '. ¿Ocurrió?';
+  document.getElementById('vencido-counter').textContent = restantes > 1 ? (restantes - 1) + ' planeados mas por revisar' : '';
+  document.getElementById('vencido-overlay').classList.add('open');
+}
+
+async function cancelarVencido() {
+  var v = vencidosPendientes[vencidoActualIdx];
+  var url = localStorage.getItem('script_url');
+  try {
+    await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'deletePlaneado', rowIndex: v.rowIndex, token: 'Theend.01' }),
+    });
+  } catch(e) {}
+  vencidoActualIdx++;
+  mostrarVencido();
+}
+
+async function confirmarVencido() {
+  var v = vencidosPendientes[vencidoActualIdx];
+  var url = localStorage.getItem('script_url');
+
+  // Cerrar popup y abrir formulario precargado
+  document.getElementById('vencido-overlay').classList.remove('open');
+
+  // Pre-fill form with planned data
+  document.getElementById('monto').value = v.monto;
+  document.getElementById('fecha').value = v.fecha;
+  document.getElementById('nota').value  = v.nota || '';
+  setTipo('real');
+
+  // Select the category button
+  document.querySelectorAll('.cat-btn').forEach(function(b) { b.classList.remove('selected'); });
+  var catBtn = document.querySelector('.cat-btn[onclick*="' + v.categoria + '"]');
+  if (catBtn) { catBtn.classList.add('selected'); selectedCat = v.categoria; renderTags(v.categoria); }
+
+  // Delete the planned entry
+  try {
+    await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'deletePlaneado', rowIndex: v.rowIndex, token: 'Theend.01' }),
+    });
+  } catch(e) {}
+
+  vencidoActualIdx++;
+  // Show next vencido after this one is handled (will show after form submit)
+  showStatus('Ajusta el monto real y registra el gasto', 'loading');
+
+  // Scroll to top of page 1
+  goToPage(0);
+  document.getElementById('pg0').scrollTop = 0;
+}
+
+// ── Eliminar planeado desde detalle ──────────────────────────
+async function eliminarPlaneadoIdx(pidx, catId) {
+  var filtrados = planeadosData.filter(function(p) { return p.categoria === catId; });
+  var p = filtrados[pidx];
+  if (!p) return;
+  var url = localStorage.getItem('script_url');
+  try {
+    await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'deletePlaneado', rowIndex: p.rowIndex, token: 'Theend.01' }),
+    });
+    await loadPlaneados();
+    await loadDetailPage();
+  } catch(e) { showStatus('Error al eliminar planeado', 'error'); }
 }
 
 // ── Config ───────────────────────────────────────────────────
