@@ -1469,7 +1469,8 @@ function renderHistorico() {
   var TODOS_MESES = ['Mayo', 'Junio', 'Julio', 'Agosto'];
   var mesActual = getMes();
 
-  if (historicoData.length === 0) {
+  // Aunque no haya historico cerrado, si hay datos del mes actual se muestran
+  if (historicoData.length === 0 && !window._mesActualBudget) {
     el.innerHTML = '<div class="empty-state">No hay meses cerrados aun.<br>El historial se genera automaticamente el ultimo dia de cada mes.</div>';
     return;
   }
