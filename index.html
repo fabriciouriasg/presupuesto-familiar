@@ -561,6 +561,14 @@ html, body {
         <input id="edit-nota" type="text" placeholder="Nota" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;background:var(--bg);color:var(--text);outline:none">
       </div>
     </div>
+    <!-- Solo visible cuando es un planeado -->
+    <div id="convertir-wrap" style="display:none; margin-bottom:16px; padding:12px 14px; background:#FFFBEB; border:1.5px solid #B8860B; border-radius:10px;">
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; font-weight:500; color:#7A4F00;">
+        <input type="checkbox" id="convertir-real" style="width:18px;height:18px;cursor:pointer;">
+        Registrar como gasto real
+      </label>
+      <div style="font-size:11px; color:#B8860B; margin-top:4px; margin-left:28px;">Al activar esto, se eliminará el planeado y se registrará como gasto real en el Log</div>
+    </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeEditModal()">Cancelar</button>
       <button class="modal-confirm" style="background:var(--green)" onclick="confirmarEdicion()">Guardar cambios</button>
@@ -1044,11 +1052,13 @@ function updateDiasRestantes() {
 var pendingEdit = null;
 
 function abrirEdicion(rowIndex, nota, monto, fecha, categoria) {
-  pendingEdit = { rowIndex: rowIndex };
+  pendingEdit = { rowIndex: rowIndex, esPlaneado: false };
   document.getElementById('edit-monto').value    = monto || '';
   document.getElementById('edit-fecha').value    = (fecha || '').split('T')[0];
   document.getElementById('edit-nota').value     = nota || '';
   document.getElementById('edit-categoria').value = categoria || 'despensa';
+  document.getElementById('convertir-wrap').style.display = 'none';
+  document.getElementById('convertir-real').checked = false;
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() {
@@ -1057,20 +1067,26 @@ function closeEditModal() {
 }
 async function confirmarEdicion() {
   if (!pendingEdit) return;
-  var url = localStorage.getItem('script_url');
+  var url       = localStorage.getItem('script_url');
   var monto     = parseFloat(document.getElementById('edit-monto').value);
   var fecha     = document.getElementById('edit-fecha').value;
   var nota      = document.getElementById('edit-nota').value.trim();
   var categoria = document.getElementById('edit-categoria').value;
   if (!monto || monto <= 0) { alert('Ingresa un monto valido'); return; }
   if (!fecha) { alert('Ingresa la fecha'); return; }
+
+  // Guardar datos antes de cerrar el modal (closeEditModal pone pendingEdit=null)
+  var rowIndex   = pendingEdit.rowIndex;
+  var esPlaneado  = pendingEdit.esPlaneado || false;
+  var convertir   = esPlaneado && document.getElementById('convertir-real').checked;
   closeEditModal();
+
   showStatus('Guardando cambios...', 'loading');
   try {
-    var accion = pendingEdit.esPlaneado ? 'editPlaneado' : 'editGasto';
+    var accion = convertir ? 'convertirPlaneado' : (esPlaneado ? 'editPlaneado' : 'editGasto');
     var r = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: accion, rowIndex: pendingEdit.rowIndex, monto: monto, fecha: fecha, nota: nota, categoria: categoria, token: 'Theend.01' }),
+      body: JSON.stringify({ action: accion, rowIndex: rowIndex, monto: monto, fecha: fecha, nota: nota, categoria: categoria, token: 'Theend.01' }),
     });
     var d = await r.json();
     if (d.ok) {
@@ -1225,12 +1241,13 @@ function editarPlaneadoIdx(pidx, catId) {
   var filtrados = planeadosData.filter(function(p) { return p.categoria === catId; });
   var p = filtrados[pidx];
   if (!p) return;
-  // Guardar rowIndex para poder eliminarlo al confirmar edicion
   pendingEdit = { rowIndex: p.rowIndex, esPlaneado: true };
   document.getElementById('edit-monto').value     = p.monto || '';
   document.getElementById('edit-fecha').value     = (p.fecha || '').split('T')[0];
   document.getElementById('edit-nota').value      = p.nota || '';
   document.getElementById('edit-categoria').value = p.categoria || 'despensa';
+  document.getElementById('convertir-real').checked = false;
+  document.getElementById('convertir-wrap').style.display = 'block';
   document.getElementById('edit-modal').classList.add('open');
 }
 
