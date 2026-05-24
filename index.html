@@ -814,6 +814,12 @@ function renderDetailContent(catId) {
   );
 
   const content = document.getElementById('detail-content');
+  // Guardar gastos en variable global para acceso por indice desde onclick
+  window._gastosActuales = gastos;
+
+  // Guardar en variable global para acceso por indice
+  window._gastosActuales = gastos;
+
   content.innerHTML =
     '<div class="detail-card">' +
       '<div class="detail-card-header"><h3>' + cat.icon + ' ' + cat.name + '</h3><span class="total-badge">$' + total.toLocaleString('es-MX') + '</span></div>' +
@@ -823,24 +829,36 @@ function renderDetailContent(catId) {
       '<div class="gastos-list-header">Registros individuales</div>' +
       (gastos.length === 0
         ? '<div class="empty-state">Sin gastos en esta categoria</div>'
-        : gastos.map(g =>
+        : gastos.map((g, idx) =>
             '<div class="gasto-item">' +
               '<div class="gasto-info">' +
                 '<div class="gasto-nota">' + (g.nota || cat.name) + '</div>' +
                 '<div class="gasto-meta">' + g.fecha + ' - ' + g.quien + '</div>' +
               '</div>' +
               '<span class="gasto-monto">$' + g.monto.toLocaleString('es-MX') + '</span>' +
-              '<button class="edit-btn" onclick="abrirEdicion(' + g.rowIndex + ',' + JSON.stringify(g.nota||cat.name) + ',' + g.monto + ',' + JSON.stringify(g.fecha) + ',' + JSON.stringify(g.categoria) + ')">✏️</button>' +
-              '<button class="delete-btn" onclick="solicitarBorrado(' + g.rowIndex + ',' + JSON.stringify(g.nota||cat.name) + ',' + g.monto + ')">🗑</button>' +
+              '<button class="edit-btn" onclick="abrirEdicionIdx(' + idx + ')">✏️</button>' +
+              '<button class="delete-btn" onclick="solicitarBorradoIdx(' + idx + ')">🗑</button>' +
             '</div>'
           ).join('')) +
     '</div>';
 }
 
+// ── Helpers por indice ───────────────────────────────────────
+function abrirEdicionIdx(idx) {
+  var g = window._gastosActuales && window._gastosActuales[idx];
+  if (!g) return;
+  abrirEdicion(g.rowIndex, g.nota, g.monto, g.fecha, g.categoria);
+}
+function solicitarBorradoIdx(idx) {
+  var g = window._gastosActuales && window._gastosActuales[idx];
+  if (!g) return;
+  solicitarBorrado(g.rowIndex, g.nota || '', g.monto);
+}
+
 // ── Borrado ──────────────────────────────────────────────────
 function solicitarBorrado(rowIndex, nota, monto) {
-  pendingDelete = { rowIndex, nota, monto };
-  document.getElementById('delete-desc').textContent = '"' + nota + '" - $' + parseFloat(monto).toLocaleString('es-MX') + '. Esta accion no se puede deshacer.';
+  pendingDelete = { rowIndex: rowIndex, nota: nota, monto: monto };
+  document.getElementById('delete-desc').textContent = '"' + (nota||'') + '" - $' + parseFloat(monto).toLocaleString('es-MX') + '. Esta accion no se puede deshacer.';
   document.getElementById('delete-modal').classList.add('open');
 }
 function closeDeleteModal() { document.getElementById('delete-modal').classList.remove('open'); pendingDelete = null; }
