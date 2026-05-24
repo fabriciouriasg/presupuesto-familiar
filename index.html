@@ -46,13 +46,15 @@ html, body {
 }
 .topbar {
   color: #fff;
-  padding: 12px 20px;
+  padding: 10px 16px 6px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 8px;
 }
+.topbar-left { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .topbar-title { font-size: 15px; font-weight: 500; }
-.topbar-sub   { font-size: 11px; opacity: .6; margin-top: 1px; }
+.topbar-sub   { font-size: 11px; opacity: .7; }
 .who-toggle { display: flex; gap: 6px; }
 .who-btn {
   padding: 5px 12px; border-radius: 20px;
@@ -238,7 +240,7 @@ html, body {
   padding: 10px 16px 6px; border-top: 1px solid var(--border);
 }
 .gasto-item {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   padding: 10px 16px; border-bottom: 1px solid var(--border);
 }
 .gasto-item:last-child { border-bottom: none; }
@@ -320,9 +322,9 @@ html, body {
 <!-- Header fijo -->
 <div class="header" id="header">
   <div class="topbar">
-    <div>
+    <div class="topbar-left">
       <div class="topbar-title">💰 Presupuesto Familiar</div>
-      <div class="topbar-sub">Mayo – Agosto 2026 &nbsp;·&nbsp; <span id="dias-restantes"></span></div>
+      <div class="topbar-sub" id="dias-restantes-sub"><span id="dias-restantes"></span></div>
     </div>
     <div class="who-toggle">
       <button class="who-btn active" onclick="setQuien('Fabricio',this)">Fabricio</button>
@@ -828,7 +830,8 @@ function renderDetailContent(catId) {
                 '<div class="gasto-meta">' + g.fecha + ' - ' + g.quien + '</div>' +
               '</div>' +
               '<span class="gasto-monto">$' + g.monto.toLocaleString('es-MX') + '</span>' +
-              '<button class="delete-btn" onclick="solicitarBorrado(' + g.rowIndex + ',\'' + (g.nota||cat.name).replace(/'/g,'') + '\',' + g.monto + ')">🗑</button>' +
+              '<button class="edit-btn" onclick="abrirEdicion(' + g.rowIndex + ',' + JSON.stringify(g.nota||cat.name) + ',' + g.monto + ',' + JSON.stringify(g.fecha) + ',' + JSON.stringify(g.categoria) + ')">✏️</button>' +
+              '<button class="delete-btn" onclick="solicitarBorrado(' + g.rowIndex + ',' + JSON.stringify(g.nota||cat.name) + ',' + g.monto + ')">🗑</button>' +
             '</div>'
           ).join('')) +
     '</div>';
@@ -866,6 +869,8 @@ function updateDiasRestantes() {
   var ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
   var restantes = ultimoDia - hoy.getDate();
   var el = document.getElementById('dias-restantes');
+  var sub = document.getElementById('dias-restantes-sub');
+  if (sub) sub.style.display = el ? 'block' : 'none';
   if (!el) return;
   if (restantes === 0) el.textContent = 'Ultimo dia del mes';
   else if (restantes === 1) el.textContent = 'Queda 1 dia';
@@ -877,10 +882,10 @@ var pendingEdit = null;
 
 function abrirEdicion(rowIndex, nota, monto, fecha, categoria) {
   pendingEdit = { rowIndex: rowIndex };
-  document.getElementById('edit-monto').value    = monto;
-  document.getElementById('edit-fecha').value     = fecha;
-  document.getElementById('edit-nota').value      = nota;
-  document.getElementById('edit-categoria').value = categoria;
+  document.getElementById('edit-monto').value    = monto || '';
+  document.getElementById('edit-fecha').value    = (fecha || '').split('T')[0];
+  document.getElementById('edit-nota').value     = nota || '';
+  document.getElementById('edit-categoria').value = categoria || 'despensa';
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() {
