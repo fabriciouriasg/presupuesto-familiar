@@ -996,10 +996,7 @@ async function loadData() {
     ]);
 
     let gastos = gRes.ok ? gRes.gastos : [];
-    if (currentAcct === 'casa' && currentUser) {
-      const esVanessa = currentUser.email.toLowerCase() === 'vanessav2122@gmail.com';
-      if (!esVanessa) gastos = gastos.filter(g => g.quien !== 'Vanessa');
-    }
+    // Casa: mostrar todos los gastos sin filtrar por quien
 
     budgets = bRes.ok ? bRes.budgets : {};
     getCats().forEach(c => { if(!budgets[c.id]) budgets[c.id] = c.b||0; });
@@ -1233,7 +1230,7 @@ async function submitGasto() {
 
   const isCasa = currentAcct === 'casa';
   const quien  = isCasa
-    ? (currentUser?.email?.toLowerCase()==='vanessav2122@gmail.com'?'Vanessa':'Fabricio')
+    ? 'Casa'
     : (userConfig?.nombre || currentUser?.name || 'Usuario');
 
   const pago = pagoEl?.dataset.pago || '';
