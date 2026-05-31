@@ -2,20 +2,21 @@
   "name": "PiggyBank",
   "short_name": "PiggyBank",
   "description": "Control de gastos personales",
-  "start_url": "/",
+  "start_url": "/presupuesto-familiar/",
+  "scope": "/presupuesto-familiar/",
   "display": "standalone",
   "background_color": "#542916",
   "theme_color": "#542916",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/presupuesto-familiar/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "/presupuesto-familiar/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
