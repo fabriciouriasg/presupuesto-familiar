@@ -377,9 +377,6 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div class="home-sub">Control de gastos</div>
     </div>
     <div class="home-accounts" id="home-accounts"></div>
-    <button onclick="openIngresoExtra()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:10px 20px;color:var(--bg);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px">
-      <span>💰</span> Registrar ingreso extra
-    </button>
   </div>
 </div>
 
@@ -508,6 +505,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <input type="number" class="form-input" id="inp-cat-limite" placeholder="$0" inputmode="decimal">
     </div>
     <button class="btn-submit" onclick="saveCat()">Guardar categoría</button>
+    <button id="btn-delete-cat" onclick="deleteCat()" style="display:none;width:100%;background:none;border:none;color:var(--danger);font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:12px 0;margin-top:4px">Eliminar categoría</button>
   </div>
 </div>
 
@@ -737,6 +735,14 @@ window.addEventListener('offline', () => setOnline(false));
 // GOOGLE AUTH
 // ════════════════════════════════════════════════════════════
 window.onGoogleLibraryLoad = function() {
+  // Initialize token client for Sheets/Drive access
+  window.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file email profile',
+    callback: handleTokenResponse,
+  });
+
+  // Render sign-in button
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback:  handleGoogleResponse,
@@ -749,6 +755,38 @@ window.onGoogleLibraryLoad = function() {
   );
   document.getElementById('login-loading').style.display = 'none';
 };
+
+// Called after ID token login — request access token for Sheets API
+function requestSheetsAccess() {
+  return new Promise((resolve) => {
+    window._sheetsAccessResolve = resolve;
+    window.tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+function handleTokenResponse(resp) {
+  if (resp.error) {
+    console.error('Token error:', resp.error);
+    if (window._sheetsAccessResolve) window._sheetsAccessResolve(null);
+    return;
+  }
+  window.gAccessToken = resp.access_token;
+  // Store expiry
+  window.gTokenExpiry = Date.now() + (resp.expires_in * 1000);
+  if (window._sheetsAccessResolve) {
+    window._sheetsAccessResolve(resp.access_token);
+    window._sheetsAccessResolve = null;
+  }
+}
+
+async function getAccessToken() {
+  // Return cached token if still valid
+  if (window.gAccessToken && window.gTokenExpiry && Date.now() < window.gTokenExpiry - 60000) {
+    return window.gAccessToken;
+  }
+  // Request new token
+  return await requestSheetsAccess();
+}
 
 function handleGoogleResponse(response) {
   const payload = parseJwt(response.credential);
@@ -773,6 +811,16 @@ async function afterLogin() {
       if (!res.ok || !res.permitido) { showScreen('restricted'); return; }
     } catch(e) {}
   }
+
+  // Request Sheets API token for personal accounts
+  if (!currentUser.isAdmin && isOnline) {
+    try {
+      await requestSheetsAccess();
+    } catch(e) {
+      console.log('Sheets access deferred:', e);
+    }
+  }
+
   const saved = gls('config_' + currentUser.email);
   if (saved) {
     userConfig = saved;
@@ -971,7 +1019,14 @@ async function finishOnboarding() {
   sls('config_' + currentUser.email, userConfig);
   applyTheme('mayne');
   if (isOnline) {
-    try { await postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email}); } catch(e) {}
+    try {
+      if (currentUser.isAdmin) {
+        await postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email});
+      } else {
+        // Create Sheet and save config
+        await saveConfigToSheet(currentUser.email, userConfig);
+      }
+    } catch(e) { console.error('Save config error:', e); }
   }
   showHome();
 }
@@ -1013,7 +1068,23 @@ function openCatModal(idx) {
   document.getElementById('inp-cat-emoji').value  = c?.e || '';
   document.getElementById('inp-cat-nombre').value = c?.l || '';
   document.getElementById('inp-cat-limite').value = c?.b || '';
+  // Show delete button when editing existing category
+  const deleteBtn = document.getElementById('btn-delete-cat');
+  if (deleteBtn) deleteBtn.style.display = idx !== undefined ? 'block' : 'none';
   document.getElementById('modal-cat').classList.add('open');
+}
+
+function deleteCat() {
+  if (editCatIdx === null) return;
+  const data = userConfig || obData;
+  const cat  = data.categorias[editCatIdx];
+  const hasGastos = gastosMes.some(g=>g.categoria===cat?.id);
+  if (hasGastos) { showToast('No puedes eliminar una categoría con gastos este mes'); return; }
+  data.categorias.splice(editCatIdx, 1);
+  if (userConfig) sls('config_'+currentUser.email, userConfig);
+  document.getElementById('modal-cat').classList.remove('open');
+  buildCatGridModal(); renderSettings();
+  showToast('Categoría eliminada');
 }
 
 function saveCat() {
@@ -1283,7 +1354,10 @@ function rResumen() {
       <div class="rb"><div class="rb-label">Disponible</div><div class="rb-val ${disp>=0?'green':'warn'}">${fmxn(Math.abs(disp))}</div></div>
     </div>
 
-    <div class="res-section">Por categoría</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="res-section" style="margin:0">Por categoría</div>
+      <button onclick="openIngresoExtra()" style="background:rgba(45,122,79,0.1);border:1px solid rgba(45,122,79,0.25);border-radius:20px;padding:6px 14px;font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--success);cursor:pointer;font-weight:600">+ Ingreso extra</button>
+    </div>
     ${cats.map(c=>{
       const spent=totals[c.id]||0;
       const lim=budgets[c.id]||c.b||0;
@@ -1518,12 +1592,15 @@ async function submitGasto() {
     renderAll();
   } else {
     try {
-      const res = await postAPI({
-        action:'registrarGasto', token:TOKEN,
-        fecha, categoria:gasto.categoria, monto:amount,
-        quien, nota:gasto.nota, pago, userId:gasto.userId
-      });
-      if (res.ok) {
+      let ok = false;
+      if (currentAcct === 'casa') {
+        const res = await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,userId:'casa'});
+        ok = res.ok;
+      } else {
+        const res = await registrarGastoPersonal(currentAcct, {...gasto, monto:amount});
+        ok = res.ok;
+      }
+      if (ok) {
         showToast('Gasto registrado ✓');
         document.getElementById('modal-gasto').classList.remove('open');
         await loadData();
@@ -1534,6 +1611,7 @@ async function submitGasto() {
         updateBadges();
       }
     } catch(e) {
+      console.error('submitGasto error:', e);
       const q=gq(currentAcct); q.push(gasto); sq(currentAcct,q);
       showToast('Sin conexión — guardado offline 🟡');
       document.getElementById('modal-gasto').classList.remove('open');
@@ -1550,19 +1628,27 @@ async function flushQueue(acct) {
   const q = gq(acct);
   if (!q.length||!isOnline) return;
   try {
-    const gastos = q.map(g=>({
-      fecha:g.fecha, categoria:g.categoria||g.category, monto:g.amount,
-      quien:g.quien, nota:g.nota, pago:g.pago||'', userId:g.userId||acct,
-      localId:g.localId||uid()
-    }));
-    const res = await postAPI({action:'registrarBatch',token:TOKEN,gastos});
-    if (res.ok) {
-      sq(acct,[]);
-      showToast(`${q.length} gasto${q.length>1?'s':''} sincronizado${q.length>1?'s':''} ✓`);
+    let synced = 0;
+    if (acct === 'casa') {
+      const gastos = q.map(g=>({fecha:g.fecha,categoria:g.categoria||g.category,monto:g.amount,quien:g.quien,nota:g.nota,pago:g.pago||'',userId:'casa',localId:g.localId||uid()}));
+      const res = await postAPI({action:'registrarBatch',token:TOKEN,gastos});
+      if (res.ok) synced = q.length;
+    } else {
+      // Personal: register one by one via Sheets API
+      for (const g of q) {
+        try {
+          await registrarGastoPersonal(acct, {fecha:g.fecha,categoria:g.categoria||g.category,monto:g.amount,quien:g.quien,nota:g.nota,pago:g.pago||''});
+          synced++;
+        } catch(e) { break; }
+      }
+    }
+    if (synced > 0) {
+      sq(acct, q.slice(synced));
+      showToast(`${synced} gasto${synced>1?'s':''} sincronizado${synced>1?'s':''} ✓`);
       updateBadges();
       if (currentAcct===acct) await loadData();
     }
-  } catch(e) {}
+  } catch(e) { console.error('flushQueue error:', e); }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1643,11 +1729,12 @@ function renderSettings() {
       <!-- MÉTODOS DE PAGO -->
       <div class="settings-section">
         <div class="settings-title">Métodos de pago</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Toca ✕ para eliminar cualquier método</div>
         <div class="chip-grid">
           ${(cfg.pagos||DEFAULT_PAGOS).map((p,i)=>`
             <div class="chip-big active">
               <span class="ce">💳</span><span class="cn">${p}</span>
-              ${i>=DEFAULT_PAGOS.length?`<span class="chip-del" onclick="removePago(${i})">✕</span>`:''}
+              <span class="chip-del" onclick="event.stopPropagation();removePago(${i})">✕</span>
             </div>`).join('')}
           <div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div>
         </div>
@@ -1668,10 +1755,16 @@ function renderSettings() {
       <!-- CATEGORÍAS -->
       <div class="settings-section">
         <div class="settings-title">Categorías</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Toca para activar/desactivar · Mantén presionado para editar</div>
         <div class="chip-grid">
           ${(cfg.categorias||[]).map((c,i)=>`
-            <div class="chip-big${c.active!==false?' active':''}" onclick="toggleCat(${i})">
-              <span class="ce">${c.e}</span><span class="cn">${c.l}</span><span class="ca">${c.b>0?fmxn(c.b):'—'}</span>
+            <div class="chip-big${c.active!==false?' active':''}"
+              onclick="toggleCat(${i})"
+              oncontextmenu="event.preventDefault();openCatModal(${i})">
+              <span class="ce">${c.e}</span>
+              <span class="cn">${c.l}</span>
+              <span class="ca">${c.b>0?fmxn(c.b):'—'}</span>
+              ${c.active!==false?'':'<span style="position:absolute;top:3px;left:5px;font-size:9px;color:var(--muted)">off</span>'}
             </div>`).join('')}
           <div class="chip-big chip-add" onclick="openCatModal()"><span class="ce">＋</span><span class="cn">Nueva</span></div>
         </div>
@@ -1761,6 +1854,7 @@ function addPago() {
 }
 
 function removePago(i) {
+  if (!userConfig.pagos) userConfig.pagos = [...DEFAULT_PAGOS];
   userConfig.pagos.splice(i,1);
   sls('config_'+currentUser.email,userConfig);
   buildPagoGrid(); renderSettings();
@@ -1793,6 +1887,146 @@ function playSuccess(){playTone([[523,.08],[659,.08],[784,.08],[1047,.15]],.3,'s
 // ════════════════════════════════════════════════════════════
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
+
+
+// ════════════════════════════════════════════════════════════
+// GOOGLE SHEETS API — Personal accounts
+// ════════════════════════════════════════════════════════════
+const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE_API  = 'https://www.googleapis.com/drive/v3';
+
+async function sheetsRequest(url, method='GET', body=null) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token');
+  const opts = {
+    method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || 'Sheets API error');
+  }
+  return method === 'DELETE' ? {} : res.json();
+}
+
+// Get or create user's personal Sheet
+async function getUserSheetId(email) {
+  const key = `pb_sheet_id_${email}`;
+  const saved = localStorage.getItem(key);
+  if (saved) return saved;
+
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token');
+
+  // Search for existing PiggyBank sheet in user's Drive
+  const searchRes = await fetch(
+    `${DRIVE_API}/files?q=name='PiggyBank - Mis Gastos' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+    { headers: { 'Authorization': 'Bearer ' + token } }
+  );
+  const searchData = await searchRes.json();
+
+  if (searchData.files && searchData.files.length > 0) {
+    const id = searchData.files[0].id;
+    localStorage.setItem(key, id);
+    return id;
+  }
+
+  // Create new Sheet
+  const createRes = await sheetsRequest(SHEETS_API, 'POST', {
+    properties: { title: 'PiggyBank - Mis Gastos' },
+    sheets: [
+      { properties: { title: 'Log_Gastos', index: 0 } },
+      { properties: { title: 'Configuracion', index: 1 } },
+      { properties: { title: 'Metas', index: 2 } },
+      { properties: { title: 'Ingresos_Extra', index: 3 } }
+    ]
+  });
+
+  // Add headers to Log_Gastos
+  await sheetsRequest(`${SHEETS_API}/${createRes.spreadsheetId}/values/Log_Gastos!A1:I1:append?valueInputOption=RAW`, 'POST', {
+    values: [['Timestamp','Fecha gasto','Categoria','Monto','Quien','Nota','Mes','ID','Pago']]
+  });
+
+  localStorage.setItem(key, createRes.spreadsheetId);
+  return createRes.spreadsheetId;
+}
+
+// Append row to user's sheet
+async function appendToUserSheet(email, sheetName, row) {
+  const sheetId = await getUserSheetId(email);
+  await sheetsRequest(
+    `${SHEETS_API}/${sheetId}/values/${sheetName}!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    'POST',
+    { values: [row] }
+  );
+}
+
+// Read rows from user's sheet
+async function readUserSheet(email, sheetName, range='A:Z') {
+  const sheetId = await getUserSheetId(email);
+  const res = await sheetsRequest(`${SHEETS_API}/${sheetId}/values/${sheetName}!${range}`);
+  return res.values || [];
+}
+
+// Save config to user's sheet
+async function saveConfigToSheet(email, config) {
+  const sheetId = await getUserSheetId(email);
+  // Clear and rewrite config sheet
+  await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Configuracion!A1:B1:clear`, 'POST', {});
+  await sheetsRequest(
+    `${SHEETS_API}/${sheetId}/values/Configuracion!A1:append?valueInputOption=RAW`,
+    'POST',
+    { values: [['config_json', JSON.stringify(config)]] }
+  );
+}
+
+// Registrar gasto en Sheet personal
+async function registrarGastoPersonal(email, gasto) {
+  const mes = (() => {
+    const d = new Date(gasto.fecha + 'T12:00:00');
+    return ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][d.getMonth()] + ' ' + d.getFullYear();
+  })();
+  const id = uid();
+  await appendToUserSheet(email, 'Log_Gastos', [
+    new Date().toLocaleString('es-MX'),
+    gasto.fecha,
+    gasto.categoria,
+    gasto.monto,
+    gasto.quien,
+    gasto.nota || '',
+    mes,
+    id,
+    gasto.pago || ''
+  ]);
+  return { ok: true, id };
+}
+
+// Get gastos del mes desde Sheet personal
+async function getGastosPersonal(email, mesNombre) {
+  const rows = await readUserSheet(email, 'Log_Gastos', 'A:I');
+  if (rows.length <= 1) return [];
+  const headers = rows[0];
+  return rows.slice(1)
+    .filter(r => {
+      const mes = r[6] || '';
+      return mes === mesNombre ||
+        mes.toLowerCase().startsWith(mesNombre.split(' ')[0].toLowerCase());
+    })
+    .map((r, i) => ({
+      rowIndex: i + 2,
+      id:        r[7] || '',
+      fecha:     r[1] || '',
+      categoria: r[2] || '',
+      monto:     parseFloat(r[3]) || 0,
+      quien:     r[4] || '',
+      nota:      r[5] || '',
+      mes:       r[6] || '',
+      pago:      r[8] || ''
+    }))
+    .sort((a,b) => b.fecha > a.fecha ? 1 : -1);
+}
 
 // ════════════════════════════════════════════════════════════
 // DOMINGO — RECORDATORIO
