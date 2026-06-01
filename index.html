@@ -230,6 +230,11 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .pago-row:last-child{border:none}
 .pago-label{color:var(--muted)}
 .pago-val{font-weight:700;color:var(--p)}
+.historial-mes-card{background:var(--card);border-radius:12px;border:1px solid var(--border);margin-bottom:8px;overflow:hidden}
+.historial-mes-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer}
+.historial-mes-header:active{background:rgba(84,41,22,0.04)}
+.historial-mes-body{padding:8px 12px 12px;border-top:1px solid var(--border)}
+.historial-arrow{font-size:18px;color:var(--muted);transition:transform 0.2s;display:inline-block}
 
 /* ── METAS ── */
 .meta-card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:14px;margin-bottom:10px}
@@ -896,6 +901,9 @@ function renderOb1() {
     </div>
     <input class="ob-name-input" id="ob-name" placeholder="¿Cómo te llamas?" value="${obData.nombre||''}">
     <div class="ob-name-hint">Este nombre aparecerá en tu cuenta</div>
+    <div style="background:rgba(183,152,88,0.1);border:1px solid rgba(183,152,88,0.25);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">
+      🗂️ Al completar el registro se creará automáticamente tu Google Sheet personal en tu Drive para guardar tus datos de forma privada.
+    </div>
     <button class="ob-btn" onclick="obNext1()">Continuar →</button>`;
 }
 
@@ -1018,15 +1026,26 @@ async function finishOnboarding() {
   };
   sls('config_' + currentUser.email, userConfig);
   applyTheme('mayne');
-  if (isOnline) {
+
+  if (isOnline && !currentUser.isAdmin) {
     try {
-      if (currentUser.isAdmin) {
-        await postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email});
-      } else {
-        // Create Sheet and save config
-        await saveConfigToSheet(currentUser.email, userConfig);
+      showToast('Creando tu Google Sheet personal...');
+      // Ensure we have Sheets access token
+      if (!window.gAccessToken) {
+        await requestSheetsAccess();
       }
-    } catch(e) { console.error('Save config error:', e); }
+      // Create Sheet and save config
+      const sheetId = await getUserSheetId(currentUser.email);
+      await saveConfigToSheet(currentUser.email, userConfig);
+      showToast('¡Tu Sheet personal fue creado en Google Drive! ✓');
+    } catch(e) {
+      console.error('Save config error:', e);
+      showToast('Configuración guardada localmente');
+    }
+  } else if (isOnline && currentUser.isAdmin) {
+    try {
+      await postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email});
+    } catch(e) {}
   }
   showHome();
 }
@@ -1377,7 +1396,163 @@ function rResumen() {
         ? Object.entries(pagoTotals).sort((a,b)=>b[1]-a[1]).map(([p,amt])=>`
           <div class="pago-row"><span class="pago-label">${p}</span><span class="pago-val">${fmxn(amt)}</span></div>`).join('')
         : `<div style="text-align:center;padding:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin datos de pago aún</div>`}
+    </div>
+
+    <div class="res-section">Historial de meses</div>
+    <div id="historial-meses-container">
+      <div style="text-align:center;padding:20px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">
+        <span style="display:block;font-size:24px;margin-bottom:8px">📅</span>
+        Cargando historial...
+      </div>
     </div>`;
+
+  // Load historial async
+  loadHistorialMeses();
+}
+
+// Separate function to load historial without blocking resumen render
+async function loadHistorialMeses() {
+  const isCasa = currentAcct === 'casa';
+  let allGastos = [];
+
+  try {
+    if (isCasa) {
+      const res = await fetchGet(`action=getHistorico&userId=casa`);
+      if (res.ok && res.historico) {
+        // historico comes as summary — fetch full gastos for each month
+        const mesActual = getMesNombre();
+        // We already have current month in gastosMes
+        // For older months, show summary only
+        renderHistorialSummary(res.historico);
+        return;
+      }
+    } else {
+      allGastos = await getAllGastosPersonal(currentAcct);
+    }
+    renderHistorialFull(allGastos);
+  } catch(e) {
+    document.getElementById('historial-meses-container').innerHTML =
+      `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">No se pudo cargar el historial</div>`;
+  }
+}
+
+function renderHistorialSummary(historico) {
+  const cont = document.getElementById('historial-meses-container');
+  if (!cont) return;
+  if (!historico.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
+    return;
+  }
+  cont.innerHTML = historico.map(h => `
+    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mes}', null)">
+      <div class="historial-mes-header">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mes}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${h.count} registros</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(h.total)}</div>
+          <div class="historial-arrow">›</div>
+        </div>
+      </div>
+      <div class="historial-mes-body" style="display:none">
+        <div style="padding:10px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">
+          Cargando gastos de ${h.mes}...
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderHistorialFull(allGastos) {
+  const cont = document.getElementById('historial-meses-container');
+  if (!cont) return;
+
+  // Group by mes
+  const groups = {};
+  allGastos.forEach(g => {
+    const d = new Date(g.fecha + 'T12:00:00');
+    const mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    if (!groups[mesKey]) groups[mesKey] = { mes: mesKey, gastos: [], total: 0 };
+    groups[mesKey].gastos.push(g);
+    groups[mesKey].total += g.monto;
+  });
+
+  const sorted = Object.values(groups).sort((a,b) => {
+    const [ma, ya] = a.mes.split(' ');
+    const [mb, yb] = b.mes.split(' ');
+    if (ya !== yb) return parseInt(yb) - parseInt(ya);
+    return MONTHS.indexOf(mb) - MONTHS.indexOf(ma);
+  });
+
+  if (!sorted.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
+    return;
+  }
+
+  cont.innerHTML = sorted.map(g => `
+    <div class="historial-mes-card">
+      <div class="historial-mes-header" onclick="toggleHistorialMes(this.parentElement)">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${g.mes}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${g.gastos.length} registros</div>
+        </div>
+        <div style="text-align:right;display:flex;align-items:center;gap:10px">
+          <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(g.total)}</div>
+          <div class="historial-arrow">›</div>
+        </div>
+      </div>
+      <div class="historial-mes-body" style="display:none">
+        ${g.gastos.map(e => {
+          const c = getCat(e.categoria);
+          return `<div class="expense-item" style="margin-bottom:6px">
+            <div class="ei-icon">${c.e}</div>
+            <div class="ei-info">
+              <div class="ei-desc">${e.nota||e.categoria}</div>
+              <div class="ei-meta">${c.l} · ${e.fecha}${e.pago?' · '+e.pago:''}</div>
+            </div>
+            <div class="ei-right">
+              <div class="ei-amount">${fmxn(e.monto)}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function toggleHistorialMes(card, mesNombre, gastos) {
+  const body  = card.querySelector('.historial-mes-body');
+  const arrow = card.querySelector('.historial-arrow');
+  const isOpen = body.style.display !== 'none';
+
+  if (isOpen) {
+    body.style.display = 'none';
+    arrow.style.transform = 'rotate(0deg)';
+    return;
+  }
+
+  body.style.display = 'block';
+  arrow.style.transform = 'rotate(90deg)';
+
+  // If Casa and no gastos loaded yet, fetch them
+  if (mesNombre && body.textContent.includes('Cargando')) {
+    try {
+      const res = await fetchGet(`action=getGastos&mes=${encodeURIComponent(mesNombre)}&userId=casa`);
+      const gastosMes = res.ok ? res.gastos.map(g=>({...g,fecha:String(g.fecha||'').split('T')[0]})) : [];
+      body.innerHTML = gastosMes.length ? gastosMes.map(e => {
+        const c = getCat(e.categoria);
+        return `<div class="expense-item" style="margin-bottom:6px">
+          <div class="ei-icon">${c.e}</div>
+          <div class="ei-info">
+            <div class="ei-desc">${e.nota||e.categoria}</div>
+            <div class="ei-meta">${c.l} · ${e.fecha}${e.pago?' · '+e.pago:''}</div>
+          </div>
+          <div class="ei-right"><div class="ei-amount">${fmxn(e.monto)}</div></div>
+        </div>`;
+      }).join('') : `<div style="padding:12px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos este mes</div>`;
+    } catch(e) {
+      body.innerHTML = `<div style="padding:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Error al cargar</div>`;
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2007,17 +2182,38 @@ async function registrarGastoPersonal(email, gasto) {
 async function getGastosPersonal(email, mesNombre) {
   const rows = await readUserSheet(email, 'Log_Gastos', 'A:I');
   if (rows.length <= 1) return [];
-  const headers = rows[0];
   return rows.slice(1)
     .filter(r => {
-      const mes = r[6] || '';
-      return mes === mesNombre ||
-        mes.toLowerCase().startsWith(mesNombre.split(' ')[0].toLowerCase());
+      const mes = String(r[6] || '').trim();
+      const mesNorm = mesNombre.toLowerCase();
+      // Match "Mayo 2026", "mayo 2026", "Mayo", etc.
+      return mes.toLowerCase() === mesNorm ||
+             mes.toLowerCase().startsWith(mesNombre.split(' ')[0].toLowerCase());
     })
     .map((r, i) => ({
       rowIndex: i + 2,
       id:        r[7] || '',
-      fecha:     r[1] || '',
+      fecha:     String(r[1] || '').split('T')[0],
+      categoria: r[2] || '',
+      monto:     parseFloat(r[3]) || 0,
+      quien:     r[4] || '',
+      nota:      r[5] || '',
+      mes:       r[6] || '',
+      pago:      r[8] || ''
+    }))
+    .sort((a,b) => b.fecha > a.fecha ? 1 : -1);
+}
+
+// Get ALL gastos from personal sheet (for historial)
+async function getAllGastosPersonal(email) {
+  const rows = await readUserSheet(email, 'Log_Gastos', 'A:I');
+  if (rows.length <= 1) return [];
+  return rows.slice(1)
+    .filter(r => r[1] && r[3])
+    .map((r, i) => ({
+      rowIndex: i + 2,
+      id:        r[7] || '',
+      fecha:     String(r[1] || '').split('T')[0],
       categoria: r[2] || '',
       monto:     parseFloat(r[3]) || 0,
       quien:     r[4] || '',
@@ -2719,7 +2915,163 @@ function rResumen() {
         ? Object.entries(pagoTotals).sort((a,b)=>b[1]-a[1]).map(([p,amt])=>`
           <div class="pago-row"><span class="pago-label">${p}</span><span class="pago-val">${fmxn(amt)}</span></div>`).join('')
         : `<div style="text-align:center;padding:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin datos de pago aún</div>`}
+    </div>
+
+    <div class="res-section">Historial de meses</div>
+    <div id="historial-meses-container">
+      <div style="text-align:center;padding:20px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">
+        <span style="display:block;font-size:24px;margin-bottom:8px">📅</span>
+        Cargando historial...
+      </div>
     </div>`;
+
+  // Load historial async
+  loadHistorialMeses();
+}
+
+// Separate function to load historial without blocking resumen render
+async function loadHistorialMeses() {
+  const isCasa = currentAcct === 'casa';
+  let allGastos = [];
+
+  try {
+    if (isCasa) {
+      const res = await fetchGet(`action=getHistorico&userId=casa`);
+      if (res.ok && res.historico) {
+        // historico comes as summary — fetch full gastos for each month
+        const mesActual = getMesNombre();
+        // We already have current month in gastosMes
+        // For older months, show summary only
+        renderHistorialSummary(res.historico);
+        return;
+      }
+    } else {
+      allGastos = await getAllGastosPersonal(currentAcct);
+    }
+    renderHistorialFull(allGastos);
+  } catch(e) {
+    document.getElementById('historial-meses-container').innerHTML =
+      `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">No se pudo cargar el historial</div>`;
+  }
+}
+
+function renderHistorialSummary(historico) {
+  const cont = document.getElementById('historial-meses-container');
+  if (!cont) return;
+  if (!historico.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
+    return;
+  }
+  cont.innerHTML = historico.map(h => `
+    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mes}', null)">
+      <div class="historial-mes-header">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mes}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${h.count} registros</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(h.total)}</div>
+          <div class="historial-arrow">›</div>
+        </div>
+      </div>
+      <div class="historial-mes-body" style="display:none">
+        <div style="padding:10px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">
+          Cargando gastos de ${h.mes}...
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderHistorialFull(allGastos) {
+  const cont = document.getElementById('historial-meses-container');
+  if (!cont) return;
+
+  // Group by mes
+  const groups = {};
+  allGastos.forEach(g => {
+    const d = new Date(g.fecha + 'T12:00:00');
+    const mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    if (!groups[mesKey]) groups[mesKey] = { mes: mesKey, gastos: [], total: 0 };
+    groups[mesKey].gastos.push(g);
+    groups[mesKey].total += g.monto;
+  });
+
+  const sorted = Object.values(groups).sort((a,b) => {
+    const [ma, ya] = a.mes.split(' ');
+    const [mb, yb] = b.mes.split(' ');
+    if (ya !== yb) return parseInt(yb) - parseInt(ya);
+    return MONTHS.indexOf(mb) - MONTHS.indexOf(ma);
+  });
+
+  if (!sorted.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
+    return;
+  }
+
+  cont.innerHTML = sorted.map(g => `
+    <div class="historial-mes-card">
+      <div class="historial-mes-header" onclick="toggleHistorialMes(this.parentElement)">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${g.mes}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${g.gastos.length} registros</div>
+        </div>
+        <div style="text-align:right;display:flex;align-items:center;gap:10px">
+          <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(g.total)}</div>
+          <div class="historial-arrow">›</div>
+        </div>
+      </div>
+      <div class="historial-mes-body" style="display:none">
+        ${g.gastos.map(e => {
+          const c = getCat(e.categoria);
+          return `<div class="expense-item" style="margin-bottom:6px">
+            <div class="ei-icon">${c.e}</div>
+            <div class="ei-info">
+              <div class="ei-desc">${e.nota||e.categoria}</div>
+              <div class="ei-meta">${c.l} · ${e.fecha}${e.pago?' · '+e.pago:''}</div>
+            </div>
+            <div class="ei-right">
+              <div class="ei-amount">${fmxn(e.monto)}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function toggleHistorialMes(card, mesNombre, gastos) {
+  const body  = card.querySelector('.historial-mes-body');
+  const arrow = card.querySelector('.historial-arrow');
+  const isOpen = body.style.display !== 'none';
+
+  if (isOpen) {
+    body.style.display = 'none';
+    arrow.style.transform = 'rotate(0deg)';
+    return;
+  }
+
+  body.style.display = 'block';
+  arrow.style.transform = 'rotate(90deg)';
+
+  // If Casa and no gastos loaded yet, fetch them
+  if (mesNombre && body.textContent.includes('Cargando')) {
+    try {
+      const res = await fetchGet(`action=getGastos&mes=${encodeURIComponent(mesNombre)}&userId=casa`);
+      const gastosMes = res.ok ? res.gastos.map(g=>({...g,fecha:String(g.fecha||'').split('T')[0]})) : [];
+      body.innerHTML = gastosMes.length ? gastosMes.map(e => {
+        const c = getCat(e.categoria);
+        return `<div class="expense-item" style="margin-bottom:6px">
+          <div class="ei-icon">${c.e}</div>
+          <div class="ei-info">
+            <div class="ei-desc">${e.nota||e.categoria}</div>
+            <div class="ei-meta">${c.l} · ${e.fecha}${e.pago?' · '+e.pago:''}</div>
+          </div>
+          <div class="ei-right"><div class="ei-amount">${fmxn(e.monto)}</div></div>
+        </div>`;
+      }).join('') : `<div style="padding:12px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos este mes</div>`;
+    } catch(e) {
+      body.innerHTML = `<div style="padding:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Error al cargar</div>`;
+    }
+  }
 }
 
 
