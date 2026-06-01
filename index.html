@@ -137,7 +137,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:62px;z-index:99}
 .nav-tab{flex:1;padding:11px 4px;border:none;background:none;cursor:pointer;font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;letter-spacing:0.3px}
 .nav-tab.active{color:var(--p);border-bottom-color:var(--s);font-weight:700}
-.tab-panel{display:none;padding:14px 14px 88px}
+.tab-panel{display:none;padding:14px 14px 72px}
 .tab-panel.active{display:block}
 
 /* ── INICIO — CAT CHIPS ── */
@@ -223,9 +223,8 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .mtype-tab.active{background:var(--p);color:var(--bg);border-color:var(--p);font-weight:700}
 
 /* ── FAB & SETTINGS ── */
-.fab{position:fixed;bottom:28px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--p);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:200;font-size:26px;color:var(--bg);box-shadow:0 4px 20px rgba(84,41,22,0.4);transition:transform 0.2s}
-.fab:active{transform:scale(0.9);background:var(--acc)}
-.settings-btn{position:fixed;bottom:92px;right:30px;width:40px;height:40px;border-radius:50%;background:rgba(84,41,22,0.07);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:200;font-size:17px;color:var(--muted)}
+.header-settings-btn{background:rgba(255,255,255,0.12);border:none;border-radius:10px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0;transition:background 0.15s}
+.header-settings-btn:active{background:rgba(255,255,255,0.22)}
 
 /* ── MODALES ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(20,8,2,0.6);z-index:500;display:none;align-items:flex-end;justify-content:center}
@@ -359,6 +358,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
         <div class="header-month" id="header-month"></div>
       </div>
       <div class="sync-pill sync-online" id="sync-pill">EN LÍNEA</div>
+      <button class="header-settings-btn" onclick="openSettings()" title="Ajustes">⚙️</button>
     </div>
   </div>
   <div class="nav-tabs">
@@ -380,8 +380,34 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
   <div id="tab-metas" class="tab-panel">
     <div id="metas-content"></div>
   </div>
-  <button class="fab" id="fab-btn" onclick="openGastoModal(null)">+</button>
-  <button class="settings-btn" onclick="openSettings()">⚙️</button>
+
+  <!-- INLINE GASTO DRAWER -->
+  <div id="inline-drawer" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-radius:24px 24px 0 0;padding:20px 20px 40px;z-index:300;box-shadow:0 -4px 24px rgba(0,0,0,0.15);animation:slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)">
+    <div style="width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 16px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div id="drawer-cat-icon" style="width:40px;height:40px;border-radius:12px;background:rgba(183,152,88,0.12);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0"></div>
+      <div>
+        <div id="drawer-cat-name" style="font-size:16px;color:var(--p)"></div>
+        <div id="drawer-cat-balance" style="font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted)"></div>
+      </div>
+      <button onclick="closeDrawer()" style="margin-left:auto;background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">×</button>
+    </div>
+    <input type="number" id="drawer-amount" class="form-input amount-input" placeholder="0.00" inputmode="decimal" style="margin-bottom:12px">
+    <input type="text" id="drawer-desc" class="form-input" placeholder="¿En qué gastaste?" style="margin-bottom:10px;font-size:15px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div class="form-label" style="margin-bottom:5px">Método de pago</div>
+        <div id="drawer-pago-grid" class="pago-grid" style="grid-template-columns:1fr 1fr"></div>
+      </div>
+      <div>
+        <div class="form-label" style="margin-bottom:5px">Fecha</div>
+        <input type="date" id="drawer-fecha" class="form-input" style="font-size:13px;padding:9px 10px">
+      </div>
+    </div>
+    <input type="text" id="drawer-note" class="form-input" placeholder="Nota (opcional)" style="margin-bottom:12px;font-size:14px">
+    <button class="btn-submit" id="drawer-submit" onclick="submitDrawer()">Registrar gasto</button>
+  </div>
+  <div id="drawer-overlay" onclick="closeDrawer()" style="display:none;position:fixed;inset:0;background:rgba(20,8,2,0.5);z-index:299"></div>
 </div>
 
 <!-- ══ SETTINGS ══ -->
@@ -1195,6 +1221,11 @@ function selPago(el) {
 }
 
 function openGastoModal(catId) {
+  // Keep modal for non-inicio tabs, use drawer for inicio
+  if (activeTab === 'inicio' && catId) {
+    openDrawer(catId);
+    return;
+  }
   preselCat = catId;
   document.getElementById('modal-gasto').classList.add('open');
   document.getElementById('modal-gasto-title').textContent = 'Nuevo gasto';
@@ -1209,6 +1240,110 @@ function openGastoModal(catId) {
   const btn = document.getElementById('btn-submit-gasto');
   btn.disabled=false; btn.textContent='Registrar gasto';
   setTimeout(()=>document.getElementById('inp-amount').focus(),300);
+}
+
+function openDrawer(catId) {
+  preselCat = catId;
+  const c = getCat(catId);
+  const totals = {};
+  gastosMes.forEach(g=>{ totals[g.categoria]=(totals[g.categoria]||0)+g.monto; });
+  const spent = totals[catId]||0;
+  const lim   = budgets[catId]||c.b||0;
+  const bal   = lim - spent;
+
+  document.getElementById('drawer-cat-icon').textContent = c.e;
+  document.getElementById('drawer-cat-name').textContent = c.l;
+  document.getElementById('drawer-cat-balance').textContent = lim>0
+    ? `${fmxn(spent)} gastado · ${fmxn(Math.abs(bal))} ${bal>=0?'disponible':'excedido'}`
+    : `${fmxn(spent)} gastado`;
+
+  document.getElementById('drawer-amount').value = '';
+  document.getElementById('drawer-desc').value = '';
+  document.getElementById('drawer-note').value = '';
+  document.getElementById('drawer-fecha').value = today();
+
+  // Build pago chips in drawer
+  const pagos = getPagos();
+  document.getElementById('drawer-pago-grid').innerHTML = pagos.map(p=>
+    `<div class="pago-chip" data-pago="${p}" onclick="selDrawerPago(this)" style="font-size:10px;padding:7px 4px">${p}</div>`
+  ).join('');
+
+  document.getElementById('drawer-submit').disabled = false;
+  document.getElementById('drawer-submit').textContent = 'Registrar gasto';
+  document.getElementById('inline-drawer').style.display = 'block';
+  document.getElementById('drawer-overlay').style.display = 'block';
+  setTimeout(()=>document.getElementById('drawer-amount').focus(), 300);
+}
+
+function closeDrawer() {
+  document.getElementById('inline-drawer').style.display = 'none';
+  document.getElementById('drawer-overlay').style.display = 'none';
+}
+
+function selDrawerPago(el) {
+  document.querySelectorAll('#drawer-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function submitDrawer() {
+  const amount = parseFloat(document.getElementById('drawer-amount').value);
+  const desc   = document.getElementById('drawer-desc').value.trim();
+  const note   = document.getElementById('drawer-note').value.trim();
+  const fecha  = document.getElementById('drawer-fecha').value;
+  const pagoEl = document.querySelector('#drawer-pago-grid .pago-chip.selected');
+
+  if (!amount||amount<=0) { showToast('Ingresa un monto válido'); return; }
+  if (!desc)  { showToast('Agrega una descripción'); return; }
+  if (!fecha) { showToast('Selecciona una fecha'); return; }
+
+  const isCasa = currentAcct === 'casa';
+  const quien  = isCasa ? 'Casa' : (userConfig?.nombre || currentUser?.name || 'Usuario');
+  const pago   = pagoEl?.dataset.pago || '';
+
+  const gasto = {
+    localId:   uid(),
+    account:   currentAcct,
+    amount,
+    categoria: preselCat,
+    fecha,
+    quien,
+    nota: desc + (note?' · '+note:''),
+    pago,
+    userId: isCasa ? 'casa' : currentAcct
+  };
+
+  const btn = document.getElementById('drawer-submit');
+  btn.disabled=true; btn.textContent='Guardando...';
+
+  if (!isOnline) {
+    const q=gq(currentAcct); q.push(gasto); sq(currentAcct,q);
+    showToast('Guardado offline 🟡');
+    closeDrawer(); updateBadges();
+    gastosMes.unshift({rowIndex:null,fecha,categoria:preselCat,monto:amount,quien,nota:gasto.nota,pago,_pending:true});
+    renderAll();
+  } else {
+    try {
+      const res = await postAPI({
+        action:'registrarGasto', token:TOKEN,
+        fecha, categoria:preselCat, monto:amount,
+        quien, nota:gasto.nota, pago, userId:gasto.userId
+      });
+      if (res.ok) {
+        showToast('Gasto registrado ✓');
+        closeDrawer();
+        await loadData();
+      } else {
+        const q=gq(currentAcct); q.push(gasto); sq(currentAcct,q);
+        showToast('Error — guardado offline 🟡');
+        closeDrawer(); updateBadges();
+      }
+    } catch(e) {
+      const q=gq(currentAcct); q.push(gasto); sq(currentAcct,q);
+      showToast('Sin conexión — guardado offline 🟡');
+      closeDrawer(); updateBadges();
+    }
+  }
+  playSuccess();
 }
 
 document.getElementById('modal-gasto').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
@@ -1316,59 +1451,134 @@ function renderSettings() {
   const isCasa = currentAcct === 'casa';
   const cfg    = userConfig || {};
   const tema   = cfg.tema || 'mayne';
+  const nombre = cfg.nombre || currentUser?.name || '';
+  const photo  = cfg.photo  || currentUser?.photo || '';
+
   document.getElementById('settings-content').innerHTML = `
+    <div style="padding-bottom:48px">
 
-    <div class="settings-section">
-      <div class="settings-title">Tema</div>
-      <div class="theme-grid-s">
-        ${THEMES.map(t=>`
-          <div class="theme-card-s${t.id===tema?' sel':''}" onclick="selTheme('${t.id}')">
-            <div class="tc-swatches-s">${t.swatches.map(c=>`<div class="tc-swatch-s" style="background:${c}"></div>`).join('')}</div>
-            <div class="tc-body-s"><div class="tc-name-s">${t.name}</div></div>
-          </div>`).join('')}
+      <!-- PERFIL -->
+      <div class="settings-section">
+        <div class="settings-title">Perfil</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+          <div onclick="document.getElementById('settings-avatar-input').click()" style="width:64px;height:64px;border-radius:50%;border:2px dashed var(--s);background:rgba(183,152,88,0.08);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+            ${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover">`:
+            `<span style="font-size:28px">${nombre?nombre[0].toUpperCase():'👤'}</span>`}
+          </div>
+          <input type="file" id="settings-avatar-input" accept="image/*" style="display:none" onchange="updateAvatar(this)">
+          <div style="flex:1">
+            <input class="form-input" id="settings-nombre" value="${nombre}" placeholder="Tu nombre" style="margin-bottom:8px;font-size:15px">
+            <input type="number" class="form-input" id="settings-ingreso" value="${cfg.ingreso||''}" placeholder="Ingreso mensual" inputmode="decimal" style="font-size:15px">
+          </div>
+        </div>
+        <button class="btn-submit" onclick="savePerfilSettings()" style="margin-top:0">Guardar perfil</button>
       </div>
-    </div>
 
-    ${!isCasa?`
-    <div class="settings-section">
-      <div class="settings-title">Métodos de pago</div>
-      <div class="chip-grid">
-        ${(cfg.pagos||DEFAULT_PAGOS).map((p,i)=>`
-          <div class="chip-big active">
-            <span class="ce">💳</span><span class="cn">${p}</span>
-            ${i>=DEFAULT_PAGOS.length?`<span class="chip-del" onclick="removePago(${i})">✕</span>`:''}
-          </div>`).join('')}
-        <div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div>
+      <!-- APARIENCIA -->
+      <div class="settings-section">
+        <div class="settings-title">Apariencia</div>
+        <div class="theme-grid-s">
+          ${THEMES.map(t=>`
+            <div class="theme-card-s${t.id===tema?' sel':''}" onclick="selTheme('${t.id}')">
+              <div class="tc-swatches-s">${t.swatches.map(c=>`<div class="tc-swatch-s" style="background:${c}"></div>`).join('')}</div>
+              <div class="tc-body-s"><div class="tc-name-s">${t.name}</div></div>
+            </div>`).join('')}
+        </div>
       </div>
-    </div>
 
-    <div class="settings-section">
-      <div class="settings-title">Gastos fijos</div>
-      <div class="chip-grid">
-        ${(cfg.fijos||[]).map((f,i)=>`
-          <div class="chip-big active" onclick="openFijoModal(${i})">
-            <span class="ce">${f.e}</span><span class="cn">${f.l}</span><span class="ca">${fmxn(f.monto)}</span>
-          </div>`).join('')}
-        <div class="chip-big chip-add" onclick="openFijoModal()"><span class="ce">＋</span><span class="cn">Agregar</span></div>
+      ${!isCasa?`
+      <!-- MÉTODOS DE PAGO -->
+      <div class="settings-section">
+        <div class="settings-title">Métodos de pago</div>
+        <div class="chip-grid">
+          ${(cfg.pagos||DEFAULT_PAGOS).map((p,i)=>`
+            <div class="chip-big active">
+              <span class="ce">💳</span><span class="cn">${p}</span>
+              ${i>=DEFAULT_PAGOS.length?`<span class="chip-del" onclick="removePago(${i})">✕</span>`:''}
+            </div>`).join('')}
+          <div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div>
+        </div>
       </div>
-    </div>
 
-    <div class="settings-section">
-      <div class="settings-title">Categorías</div>
-      <div class="chip-grid">
-        ${(cfg.categorias||[]).map((c,i)=>`
-          <div class="chip-big${c.active!==false?' active':''}" onclick="toggleCat(${i})">
-            <span class="ce">${c.e}</span><span class="cn">${c.l}</span><span class="ca">${c.b>0?fmxn(c.b):'—'}</span>
-          </div>`).join('')}
-        <div class="chip-big chip-add" onclick="openCatModal()"><span class="ce">＋</span><span class="cn">Nueva</span></div>
+      <!-- GASTOS FIJOS -->
+      <div class="settings-section">
+        <div class="settings-title">Gastos fijos</div>
+        <div class="chip-grid">
+          ${(cfg.fijos||[]).map((f,i)=>`
+            <div class="chip-big active" onclick="openFijoModal(${i})">
+              <span class="ce">${f.e}</span><span class="cn">${f.l}</span><span class="ca">${fmxn(f.monto)}</span>
+            </div>`).join('')}
+          <div class="chip-big chip-add" onclick="openFijoModal()"><span class="ce">＋</span><span class="cn">Agregar</span></div>
+        </div>
       </div>
-    </div>
 
-    <div class="settings-section">
-      <button onclick="signOut()" style="background:none;border:none;color:var(--danger);font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:4px 0">
-        Cerrar sesión
-      </button>
-    </div>`:``}`;
+      <!-- CATEGORÍAS -->
+      <div class="settings-section">
+        <div class="settings-title">Categorías</div>
+        <div class="chip-grid">
+          ${(cfg.categorias||[]).map((c,i)=>`
+            <div class="chip-big${c.active!==false?' active':''}" onclick="toggleCat(${i})">
+              <span class="ce">${c.e}</span><span class="cn">${c.l}</span><span class="ca">${c.b>0?fmxn(c.b):'—'}</span>
+            </div>`).join('')}
+          <div class="chip-big chip-add" onclick="openCatModal()"><span class="ce">＋</span><span class="cn">Nueva</span></div>
+        </div>
+      </div>
+
+      <!-- EXPORTAR -->
+      <div class="settings-section">
+        <div class="settings-title">Datos</div>
+        <button class="btn-secondary" onclick="exportCSV()">📥 Exportar gastos del mes (CSV)</button>
+      </div>`:``}
+
+      <!-- SESIÓN -->
+      <div class="settings-section">
+        <button onclick="signOut()" style="background:none;border:none;color:var(--danger);font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:4px 0;width:100%;text-align:left">
+          → Cerrar sesión
+        </button>
+      </div>
+
+    </div>`;
+}
+
+function updateAvatar(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (userConfig) {
+      userConfig.photo = e.target.result;
+      sls('config_'+currentUser.email, userConfig);
+    }
+    renderSettings();
+    renderHome();
+  };
+  reader.readAsDataURL(file);
+}
+
+function savePerfilSettings() {
+  const nombre  = document.getElementById('settings-nombre').value.trim();
+  const ingreso = parseFloat(document.getElementById('settings-ingreso').value);
+  if (!nombre) { showToast('Ingresa un nombre'); return; }
+  if (!ingreso||ingreso<=0) { showToast('Ingresa un ingreso válido'); return; }
+  if (userConfig) {
+    userConfig.nombre  = nombre;
+    userConfig.ingreso = ingreso;
+    sls('config_'+currentUser.email, userConfig);
+    document.getElementById('header-name').textContent = nombre;
+    if (isOnline) postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email}).catch(()=>{});
+  }
+  showToast('Perfil actualizado ✓');
+}
+
+function exportCSV() {
+  if (!gastosMes.length) { showToast('Sin gastos para exportar'); return; }
+  const rows = [['Fecha','Categoría','Monto','Quién','Nota','Pago']];
+  gastosMes.forEach(g => rows.push([g.fecha, g.categoria, g.monto, g.quien||'', g.nota||'', g.pago||'']));
+  const csv = rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download=`gastos_${getMesNombre().replace(' ','_')}.csv`; a.click();
+  URL.revokeObjectURL(url);
 }
 
 function selTheme(id) {
