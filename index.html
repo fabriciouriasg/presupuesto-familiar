@@ -139,6 +139,39 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-tab.active{color:var(--p);border-bottom-color:var(--s);font-weight:700}
 .tab-panel{display:none;padding:14px 14px 72px}
 .tab-panel.active{display:block}
+.has-bg-image .tab-panel,
+.has-bg-image #screen-home,
+.has-bg-image #screen-onboarding,
+.has-bg-image #screen-restricted,
+.has-bg-image #screen-settings .settings-section,
+.has-bg-image #screen-settings{
+  background: transparent !important;
+}
+.has-bg-image #screen-app,
+.has-bg-image #screen-settings{
+  background-image: var(--bg-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+}
+.has-bg-image #screen-home{
+  background-image: linear-gradient(160deg,var(--p)cc 0%,var(--p2)cc 50%,var(--acc)cc 100%), var(--bg-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+.has-bg-image .modal-sheet,
+.has-bg-image .expense-item,
+.has-bg-image .meta-card,
+.has-bg-image .pago-card,
+.has-bg-image .cc{
+  background: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(8px);
+}
+.has-bg-image .app-header,
+.has-bg-image .nav-tabs,
+.has-bg-image .settings-header{
+  background: var(--p) !important;
+}
 
 /* ── INICIO — CAT CHIPS ── */
 .cat-chips-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -344,6 +377,9 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div class="home-sub">Control de gastos</div>
     </div>
     <div class="home-accounts" id="home-accounts"></div>
+    <button onclick="openIngresoExtra()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:10px 20px;color:var(--bg);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px">
+      <span>💰</span> Registrar ingreso extra
+    </button>
   </div>
 </div>
 
@@ -505,6 +541,71 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
   </div>
 </div>
 
+
+<!-- ══ MODAL CIERRE DE MES ══ -->
+<div class="modal-overlay" id="modal-cierre" style="align-items:center;justify-content:center;padding:20px">
+  <div class="modal-sheet" style="border-radius:20px;max-height:88vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div id="cierre-content"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL RECORDATORIO DOMINICAL ══ -->
+<div class="modal-overlay" id="modal-recordatorio" style="align-items:flex-end">
+  <div class="modal-sheet" style="max-height:92vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div id="recordatorio-content"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL INGRESO EXTRA ══ -->
+<div class="modal-overlay" id="modal-ingreso-extra">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">💰 Ingreso extra</div>
+    <div class="form-group">
+      <label class="form-label">Monto</label>
+      <input type="number" class="form-input amount-input" id="inp-ingreso-monto" placeholder="0.00" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <input type="text" class="form-input" id="inp-ingreso-desc" placeholder="ej. Bono, freelance, venta...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha</label>
+      <input type="date" class="form-input" id="inp-ingreso-fecha">
+    </div>
+    <button class="btn-submit" onclick="submitIngresoExtra()">Registrar ingreso</button>
+  </div>
+</div>
+
+<!-- ══ MODAL META ══ -->
+<div class="modal-overlay" id="modal-meta">
+  <div class="modal-sheet" style="max-height:92vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-meta-title">Nueva meta</div>
+    <div id="modal-meta-body"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL ABONO META ══ -->
+<div class="modal-overlay" id="modal-abono">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Abonar a meta</div>
+    <div id="abono-meta-name" style="font-size:13px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:16px"></div>
+    <div class="form-group">
+      <label class="form-label">Monto a abonar</label>
+      <input type="number" class="form-input amount-input" id="inp-abono-monto" placeholder="0.00" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nota (opcional)</label>
+      <input type="text" class="form-input" id="inp-abono-nota" placeholder="ej. Quincena de mayo">
+    </div>
+    <button class="btn-submit" onclick="submitAbono()">Registrar abono</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -539,14 +640,9 @@ const DEFAULT_FIJOS = [
 const DEFAULT_PAGOS = ['HSBC','Invex','Efectivo'];
 
 const THEMES = [
-  {id:'mayne',    name:'Mayne',          swatches:['#542916','#b79858','#a13a1e','#88b8ce','#fefaf0'], p:'#542916',s:'#b79858',acc:'#a13a1e',bg:'#fefaf0'},
-  {id:'sage',     name:'Sage & Sand',    swatches:['#4a7c6f','#6aab99','#e8b86d','#f5efe6','#d4614a'], p:'#4a7c6f',s:'#6aab99',acc:'#e8b86d',bg:'#f5efe6'},
-  {id:'sky',      name:'Sky & Peach',    swatches:['#3a7bd5','#6aaee8','#f4956a','#fef6f0','#e85d5d'], p:'#3a7bd5',s:'#6aaee8',acc:'#f4956a',bg:'#fef6f0'},
-  {id:'lavender', name:'Lavender & Mint',swatches:['#7c6faa','#a89fd4','#5dbea3','#f4f0fb','#e06b8b'], p:'#7c6faa',s:'#a89fd4',acc:'#5dbea3',bg:'#f4f0fb'},
-  {id:'forest',   name:'Forest & Amber', swatches:['#2d6a4f','#52b788','#f4a261','#f8f4e8','#e76f51'], p:'#2d6a4f',s:'#52b788',acc:'#f4a261',bg:'#f8f4e8'},
-  {id:'ocean',    name:'Deep Ocean',     swatches:['#0a4f6e','#1a8fa8','#40c8d4','#e8f7fa','#e05c3a'], p:'#0a4f6e',s:'#1a8fa8',acc:'#40c8d4',bg:'#e8f7fa'},
-  {id:'clearsky', name:'Clear Sky',      swatches:['#5b9bd5','#90c4f0','#ffd166','#f0f8ff','#ff6b6b'], p:'#5b9bd5',s:'#90c4f0',acc:'#ffd166',bg:'#f0f8ff'},
-  {id:'codec',    name:'Codec',          swatches:['#0a0f0a','#1a2e1a','#4aff91','#0d1a0d','#ff3a3a'], p:'#0d1a0d',s:'#1a2e1a',acc:'#4aff91',bg:'#0a0f0a'}
+  {id:'mayne',    name:'Mayne',     swatches:['#542916','#b79858','#a13a1e','#88b8ce','#fefaf0'], p:'#542916',s:'#b79858',acc:'#a13a1e',bg:'#fefaf0'},
+  {id:'clearsky', name:'Clear Sky', swatches:['#5b9bd5','#90c4f0','#ffd166','#f0f8ff','#ff6b6b'], p:'#5b9bd5',s:'#90c4f0',acc:'#ffd166',bg:'#f0f8ff'},
+  {id:'custom',   name:'Mi tema',   swatches:['#542916','#b79858','#a13a1e','#88b8ce','#fefaf0'], p:'#542916',s:'#b79858',acc:'#a13a1e',bg:'#fefaf0'}
 ];
 
 // ════════════════════════════════════════════════════════════
@@ -587,13 +683,34 @@ const getPagos= () => currentAcct==='casa' ? DEFAULT_PAGOS : (userConfig?.pagos 
 // THEME
 // ════════════════════════════════════════════════════════════
 function applyTheme(id) {
-  const t = THEMES.find(x=>x.id===id) || THEMES[0];
+  // Custom theme uses saved colors
+  let t;
+  if (id === 'custom') {
+    const saved = gls('custom_theme_' + (currentUser?.email||'default'));
+    t = saved ? {...THEMES[2], ...saved, id:'custom'} : THEMES[0];
+  } else {
+    t = THEMES.find(x=>x.id===id) || THEMES[0];
+  }
   const r = document.documentElement.style;
   r.setProperty('--p',  t.p);
   r.setProperty('--p2', t.p+'cc');
   r.setProperty('--s',  t.s);
   r.setProperty('--acc',t.acc);
   r.setProperty('--bg', t.bg);
+  // Apply background image if set
+  applyBgImage();
+}
+
+function applyBgImage() {
+  const email = currentUser?.email || 'default';
+  const img   = gls('bg_image_' + email);
+  if (img) {
+    document.documentElement.style.setProperty('--bg-image', `url("${img}")`);
+    document.body.classList.add('has-bg-image');
+  } else {
+    document.documentElement.style.removeProperty('--bg-image');
+    document.body.classList.remove('has-bg-image');
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -922,6 +1039,11 @@ function showHome() {
   currentUser = gls('user') || currentUser;
   showScreen('home');
   renderHome();
+  // Check mandatory flows after short delay
+  setTimeout(() => {
+    checkCierreMes();
+    checkDomingo();
+  }, 600);
 }
 
 function renderHome() {
@@ -988,6 +1110,7 @@ async function openAccount(acct) {
   av.innerHTML = photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : (isCasa?'🏠':nombre[0]);
 
   applyTheme(userConfig?.tema || 'mayne');
+  applyBgImage();
   showScreen('app');
   setOnline(navigator.onLine);
   buildCatGridModal();
@@ -1346,9 +1469,10 @@ async function submitDrawer() {
   playSuccess();
 }
 
-document.getElementById('modal-gasto').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
-document.getElementById('modal-cat').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
-document.getElementById('modal-fijo').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+['modal-gasto','modal-cat','modal-fijo','modal-meta','modal-abono','modal-ingreso-extra'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+});
 
 async function submitGasto() {
   const amount = parseFloat(document.getElementById('inp-amount').value);
@@ -1477,12 +1601,41 @@ function renderSettings() {
       <!-- APARIENCIA -->
       <div class="settings-section">
         <div class="settings-title">Apariencia</div>
-        <div class="theme-grid-s">
+
+        <!-- Temas predefinidos + custom -->
+        <div class="theme-grid-s" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:16px">
           ${THEMES.map(t=>`
             <div class="theme-card-s${t.id===tema?' sel':''}" onclick="selTheme('${t.id}')">
               <div class="tc-swatches-s">${t.swatches.map(c=>`<div class="tc-swatch-s" style="background:${c}"></div>`).join('')}</div>
-              <div class="tc-body-s"><div class="tc-name-s">${t.name}</div></div>
+              <div class="tc-body-s"><div class="tc-name-s">${t.id==='custom'?'✏️ Mi tema':t.name}</div></div>
             </div>`).join('')}
+        </div>
+
+        <!-- Editor de tema custom -->
+        <div id="custom-theme-editor" style="${tema==='custom'?'':'display:none'}">
+          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Personalizar mi tema</div>
+          ${renderColorPickers(cfg)}
+          <button class="btn-submit" onclick="saveCustomTheme()" style="margin-top:8px">Aplicar mi tema</button>
+        </div>
+
+        <!-- Imagen de fondo -->
+        <div style="margin-top:16px">
+          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Imagen de fondo</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div id="bg-preview" onclick="document.getElementById('bg-input').click()" style="width:64px;height:64px;border-radius:10px;border:1.5px dashed var(--s);background:rgba(183,152,88,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0">
+              ${gls('bg_image_'+(currentUser?.email||'default'))
+                ? `<img src="${gls('bg_image_'+(currentUser?.email||'default'))}" style="width:100%;height:100%;object-fit:cover">`
+                : `<span style="font-size:24px">🖼️</span>`}
+            </div>
+            <input type="file" id="bg-input" accept="image/*" style="display:none" onchange="handleBgImage(this)">
+            <div style="flex:1">
+              <div style="font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif;margin-bottom:4px">Toca para subir imagen</div>
+              <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">Aplica al fondo de toda la app.<br>El header mantiene su color.</div>
+            </div>
+            ${gls('bg_image_'+(currentUser?.email||'default'))
+              ? `<button onclick="removeBgImage()" style="background:none;border:none;color:var(--danger);font-size:12px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">Quitar</button>`
+              : ''}
+          </div>
         </div>
       </div>
 
@@ -1640,6 +1793,825 @@ function playSuccess(){playTone([[523,.08],[659,.08],[784,.08],[1047,.15]],.3,'s
 // ════════════════════════════════════════════════════════════
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
+
+// ════════════════════════════════════════════════════════════
+// DOMINGO — RECORDATORIO
+// ════════════════════════════════════════════════════════════
+function checkDomingo() {
+  const hoy = new Date();
+  if (hoy.getDay() !== 0) return; // Solo domingos
+  const keyHoy = `pb_domingo_${hoy.getFullYear()}_${hoy.getMonth()}_${hoy.getDate()}`;
+  if (localStorage.getItem(keyHoy)) return; // Ya se mostró hoy
+  mostrarRecordatorio(keyHoy);
+}
+
+function mostrarRecordatorio(keyHoy) {
+  const cats = getCats();
+  const totals = {};
+  gastosMes.forEach(g => { totals[g.categoria] = (totals[g.categoria]||0) + g.monto; });
+
+  // Generar preguntas rotativas basadas en categorías activas
+  const preguntas = generarPreguntas(cats, totals);
+  const pagos = getPagos();
+  const isCasa = currentAcct === 'casa';
+  const cuentas = currentUser?.isAdmin ? ['Casa', userConfig?.nombre||'Personal'] : [userConfig?.nombre||'Personal'];
+
+  document.getElementById('recordatorio-content').innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:6px">Recordatorio dominical 🐷</div>
+      <div style="font-size:20px;color:var(--p);margin-bottom:12px">¿Olvidaste registrar algo?</div>
+      <div style="background:rgba(183,152,88,0.08);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+        ${preguntas.map(p=>`<div style="font-size:13px;color:var(--text);font-family:'Helvetica Neue',sans-serif;padding:4px 0;display:flex;align-items:center;gap:8px"><span>${p.e}</span>${p.q}</div>`).join('')}
+      </div>
+    </div>
+    <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Registrar gasto olvidado</div>
+    ${cuentas.length > 1 ? `
+    <div class="form-group">
+      <label class="form-label">Cuenta</label>
+      <div style="display:flex;gap:8px">
+        ${cuentas.map((c,i)=>`<div class="pago-chip${i===0?' selected':''}" onclick="selRecordatorioCuenta(this)" data-cuenta="${i===0?'casa':currentAcct}" style="flex:1;text-align:center;padding:10px">${c}</div>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="form-group">
+      <input type="number" class="form-input amount-input" id="rec-amount" placeholder="0.00" inputmode="decimal" style="margin-bottom:10px">
+    </div>
+    <div class="form-group">
+      <input type="text" class="form-input" id="rec-desc" placeholder="¿En qué gastaste?" style="margin-bottom:10px;font-size:15px">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Categoría</label>
+      <div class="cat-grid-modal" id="rec-cat-grid">
+        ${cats.map(c=>`<div class="cat-chip-m" data-cat="${c.id}" onclick="selRecCat(this)"><span class="ce">${c.e}</span>${c.l}</div>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Método de pago</label>
+      <div class="pago-grid" id="rec-pago-grid">
+        ${pagos.map(p=>`<div class="pago-chip" data-pago="${p}" onclick="selRecPago(this)">${p}</div>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <input type="date" class="form-input" id="rec-fecha" value="${today()}">
+    </div>
+    <button class="btn-submit" onclick="submitRecordatorio()" style="margin-bottom:10px">Registrar gasto</button>
+    <button class="btn-secondary" onclick="cerrarRecordatorio('${keyHoy}')">Ya registré todo — Listo</button>
+  `;
+  document.getElementById('modal-recordatorio').classList.add('open');
+}
+
+function generarPreguntas(cats, totals) {
+  const preguntas = [];
+  const mapQ = {
+    gasolina: '¿Pasaste por la gasolinera esta semana?',
+    salidas:  '¿Comiste fuera o saliste con amigos?',
+    despensa: '¿Hiciste súper o compras del hogar?',
+    amazon:   '¿Llegó algún paquete de Amazon?',
+    uber:     '¿Tomaste Uber o transporte?',
+    ropa:     '¿Compraste ropa o accesorios?',
+    buffer:   '¿Tuviste algún gasto inesperado?',
+    ahorro:   '¿Apartaste algo para ahorro esta semana?',
+  };
+  cats.forEach(c => {
+    const q = mapQ[c.id] || `¿Tuviste gastos de ${c.l}?`;
+    preguntas.push({ e: c.e, q });
+  });
+  // Rotar basado en día del año para que cambien cada semana
+  const seed = Math.floor(Date.now() / (7*24*60*60*1000));
+  const rotated = [...preguntas.slice(seed % preguntas.length), ...preguntas.slice(0, seed % preguntas.length)];
+  return rotated.slice(0, 4);
+}
+
+function selRecordatorioCuenta(el) {
+  document.querySelectorAll('#recordatorio-content .pago-chip[data-cuenta]').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function selRecCat(el) {
+  document.querySelectorAll('#rec-cat-grid .cat-chip-m').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function selRecPago(el) {
+  document.querySelectorAll('#rec-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function submitRecordatorio() {
+  const amount = parseFloat(document.getElementById('rec-amount').value);
+  const desc   = document.getElementById('rec-desc').value.trim();
+  const fecha  = document.getElementById('rec-fecha').value;
+  const catEl  = document.querySelector('#rec-cat-grid .cat-chip-m.selected');
+  const pagoEl = document.querySelector('#rec-pago-grid .pago-chip.selected');
+  const cuentaEl = document.querySelector('#recordatorio-content .pago-chip[data-cuenta].selected');
+  const acct   = cuentaEl?.dataset.cuenta || currentAcct;
+
+  if (!amount||amount<=0) { showToast('Ingresa un monto válido'); return; }
+  if (!desc)  { showToast('Agrega una descripción'); return; }
+  if (!catEl) { showToast('Selecciona una categoría'); return; }
+
+  const quien = acct==='casa' ? 'Casa' : (userConfig?.nombre||currentUser?.name||'Usuario');
+  const pago  = pagoEl?.dataset.pago || '';
+
+  const gasto = {
+    localId: uid(), account: acct, amount,
+    categoria: catEl.dataset.cat, fecha, quien,
+    nota: desc, pago, userId: acct
+  };
+
+  const btn = document.querySelector('#recordatorio-content .btn-submit');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+
+  if (!isOnline) {
+    const q=gq(acct);q.push(gasto);sq(acct,q);
+    showToast('Guardado offline 🟡');
+    // Reset form
+    document.getElementById('rec-amount').value='';
+    document.getElementById('rec-desc').value='';
+    document.querySelectorAll('#rec-cat-grid .cat-chip-m, #rec-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));
+    if(btn){btn.disabled=false;btn.textContent='Registrar gasto';}
+  } else {
+    try {
+      const res = await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:catEl.dataset.cat,monto:amount,quien,nota:desc,pago,userId:acct});
+      if(res.ok){
+        showToast('Gasto registrado ✓');
+        document.getElementById('rec-amount').value='';
+        document.getElementById('rec-desc').value='';
+        document.querySelectorAll('#rec-cat-grid .cat-chip-m, #rec-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));
+        if(btn){btn.disabled=false;btn.textContent='Registrar gasto';}
+        if(currentAcct===acct) await loadData();
+      }
+    } catch(e) {
+      const q=gq(acct);q.push(gasto);sq(acct,q);
+      showToast('Sin conexión — guardado offline 🟡');
+      if(btn){btn.disabled=false;btn.textContent='Registrar gasto';}
+    }
+  }
+  playSuccess();
+}
+
+function cerrarRecordatorio(key) {
+  localStorage.setItem(key, '1');
+  document.getElementById('modal-recordatorio').classList.remove('open');
+}
+
+// ════════════════════════════════════════════════════════════
+// CIERRE DE MES
+// ════════════════════════════════════════════════════════════
+function checkCierreMes() {
+  const hoy = new Date();
+  if (hoy.getDate() !== 1) return;
+  const mesAnterior = new Date(hoy.getFullYear(), hoy.getMonth()-1, 1);
+  const keyMes = `pb_cierre_${mesAnterior.getFullYear()}_${mesAnterior.getMonth()}_${currentAcct}`;
+  if (localStorage.getItem(keyMes)) return;
+  mostrarCierreMes(mesAnterior, keyMes);
+}
+
+function mostrarCierreMes(mesAnterior, keyMes) {
+  const mesNombre = MONTHS[mesAnterior.getMonth()] + ' ' + mesAnterior.getFullYear();
+  const fijos = currentAcct==='casa' ? DEFAULT_FIJOS : (userConfig?.fijos||DEFAULT_FIJOS);
+  const ingreso = currentAcct==='casa' ? 44500 : (userConfig?.ingreso||0);
+  const totalFijos = fijos.reduce((s,f)=>s+(f.monto||0),0);
+
+  // Load gastos del mes anterior
+  const extraIngresos = gls(`pb_ingresos_extra_${currentAcct}`) || [];
+  const totalExtra = extraIngresos
+    .filter(i=>i.fecha && i.fecha.startsWith(mesAnterior.getFullYear()+'-'+String(mesAnterior.getMonth()+1).padStart(2,'0')))
+    .reduce((s,i)=>s+(i.monto||0),0);
+
+  const ingresoTotal = ingreso + totalExtra;
+  const totalVar = gastosMes.reduce((s,g)=>s+g.monto,0);
+  const sobrante = ingresoTotal - totalFijos - totalVar;
+
+  // Get metas tipo 2 (retos) del mes anterior
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const retosActivos = metas.filter(m=>m.tipo==='reto'&&m.activo);
+
+  document.getElementById('cierre-content').innerHTML = `
+    <div style="font-size:20px;color:var(--p);margin-bottom:6px">Cierre de ${mesNombre}</div>
+    <div style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:20px">Completa este proceso para continuar</div>
+
+    <!-- RESUMEN FINANCIERO -->
+    <div class="total-card" style="margin-bottom:20px">
+      <div class="tc-row"><span class="tc-label">Ingreso base</span><span class="tc-val">${fmxn(ingreso)}</span></div>
+      ${totalExtra>0?`<div class="tc-row"><span class="tc-label">Ingresos extra</span><span class="tc-val ok">+ ${fmxn(totalExtra)}</span></div>`:''}
+      <div class="tc-row"><span class="tc-label">Total ingreso</span><span class="tc-val">${fmxn(ingresoTotal)}</span></div>
+      <div class="tc-row"><span class="tc-label">Gastos fijos</span><span class="tc-val neg">− ${fmxn(totalFijos)}</span></div>
+      <div class="tc-row"><span class="tc-label">Gastos variables</span><span class="tc-val neg">− ${fmxn(totalVar)}</span></div>
+      <div class="tc-div"></div>
+      <div class="tc-row"><span class="tc-label">Sobrante del mes</span><span class="tc-val ${sobrante>=0?'ok':'neg'}">${fmxn(sobrante)}</span></div>
+    </div>
+
+    ${sobrante>0?`
+    <!-- ASIGNAR SOBRANTE -->
+    <div style="font-size:13px;font-weight:600;color:var(--p);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">¿Qué haces con el sobrante?</div>
+    <div id="sobrante-metas"></div>
+    <button class="btn-secondary" onclick="asignarSobranteLibre(${sobrante})" style="margin-bottom:16px">Dejar libre (no asignar)</button>
+    `:''}
+
+    ${retosActivos.length?`
+    <!-- REVISIÓN RETOS -->
+    <div style="font-size:13px;font-weight:600;color:var(--p);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Revisión de retos</div>
+    ${retosActivos.map(r=>{
+      const totals={};
+      gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
+      const gastado=totals[r.categoria]||0;
+      const logrado=gastado<=r.meta;
+      return `<div class="meta-card" style="margin-bottom:8px">
+        <div class="mc-top">
+          <span class="mc-emoji">${r.emoji}</span>
+          <div class="mc-info"><div class="mc-name">${r.nombre}</div>
+          <div class="mc-sub">Meta: ${fmxn(r.meta)} · Gastado: ${fmxn(gastado)}</div></div>
+          <span class="mc-badge ${logrado?'badge-ok':'badge-over'}">${logrado?'✓ Logrado':'✗ Fallido'}</span>
+        </div>
+      </div>`;
+    }).join('')}
+    `:''}
+
+    <button class="btn-submit" onclick="completarCierre('${keyMes}')">Completar cierre del mes</button>
+  `;
+
+  // Render metas tipo 1 para asignar sobrante
+  if (sobrante > 0) {
+    const metasEvento = metas.filter(m=>m.tipo==='evento'&&m.activo);
+    const cont = document.getElementById('sobrante-metas');
+    if (cont && metasEvento.length) {
+      cont.innerHTML = metasEvento.map(m=>`
+        <div class="meta-card" style="margin-bottom:8px;cursor:pointer" onclick="asignarSobrante('${m.id}',${sobrante})">
+          <div class="mc-top">
+            <span class="mc-emoji">${m.emoji}</span>
+            <div class="mc-info"><div class="mc-name">${m.nombre}</div>
+            <div class="mc-sub">Asignar ${fmxn(sobrante)} a esta meta</div></div>
+            <span style="font-size:18px;color:var(--s)">→</span>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  document.getElementById('modal-cierre').classList.add('open');
+}
+
+function asignarSobrante(metaId, monto) {
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const meta = metas.find(m=>m.id===metaId);
+  if (!meta) return;
+  meta.ahorrado = (meta.ahorrado||0) + monto;
+  meta.abonos = meta.abonos || [];
+  meta.abonos.push({ fecha: today(), monto, nota: 'Sobrante del mes' });
+  sls(`pb_metas_${currentAcct}`, metas);
+  showToast(`${fmxn(monto)} asignado a "${meta.nombre}" ✓`);
+}
+
+function asignarSobranteLibre(monto) {
+  showToast(`${fmxn(monto)} queda libre — no asignado`);
+}
+
+function completarCierre(key) {
+  localStorage.setItem(key, '1');
+  document.getElementById('modal-cierre').classList.remove('open');
+  showToast('Cierre de mes completado ✓');
+}
+
+// ════════════════════════════════════════════════════════════
+// INGRESO EXTRA
+// ════════════════════════════════════════════════════════════
+function openIngresoExtra() {
+  document.getElementById('inp-ingreso-monto').value = '';
+  document.getElementById('inp-ingreso-desc').value  = '';
+  document.getElementById('inp-ingreso-fecha').value = today();
+  document.getElementById('modal-ingreso-extra').classList.add('open');
+  setTimeout(()=>document.getElementById('inp-ingreso-monto').focus(), 300);
+}
+
+async function submitIngresoExtra() {
+  const monto = parseFloat(document.getElementById('inp-ingreso-monto').value);
+  const desc  = document.getElementById('inp-ingreso-desc').value.trim();
+  const fecha = document.getElementById('inp-ingreso-fecha').value;
+  if (!monto||monto<=0) { showToast('Ingresa un monto válido'); return; }
+  if (!desc)  { showToast('Agrega una descripción'); return; }
+
+  const ingreso = { id:uid(), monto, desc, fecha, cuenta: currentAcct||'casa' };
+  // Guardar localmente
+  const key = `pb_ingresos_extra_${currentAcct||'casa'}`;
+  const lista = gls(key) || [];
+  lista.push(ingreso);
+  sls(key, lista);
+
+  // Guardar en Sheet
+  if (isOnline) {
+    try {
+      await postAPI({action:'registrarIngresoExtra',token:TOKEN,monto,desc,fecha,userId:currentAcct||'casa'});
+    } catch(e) {}
+  }
+
+  document.getElementById('modal-ingreso-extra').classList.remove('open');
+  showToast('Ingreso extra registrado ✓');
+  renderResumenConExtras();
+}
+
+function getIngresosExtra() {
+  const key = `pb_ingresos_extra_${currentAcct}`;
+  const lista = gls(key) || [];
+  const mesActual = getMesNombre();
+  return lista.filter(i => {
+    const d = new Date(i.fecha+'T12:00:00');
+    return (MONTHS[d.getMonth()] + ' ' + d.getFullYear()) === mesActual;
+  });
+}
+
+function renderResumenConExtras() {
+  if (activeTab === 'resumen') rResumen();
+}
+
+// ════════════════════════════════════════════════════════════
+// METAS
+// ════════════════════════════════════════════════════════════
+function rMetas() {
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const activas = metas.filter(m=>m.activo!==false);
+  const el = document.getElementById('metas-content');
+
+  el.innerHTML = `
+    <div class="metas-type-tabs">
+      <div class="mtype-tab active" onclick="filterMetas('todas',this)">Todas</div>
+      <div class="mtype-tab" onclick="filterMetas('evento',this)">🎯 Eventos</div>
+      <div class="mtype-tab" onclick="filterMetas('reto',this)">💪 Retos</div>
+      <div class="mtype-tab" onclick="filterMetas('ahorro',this)">💰 Ahorro</div>
+    </div>
+    <div id="metas-list">
+      ${activas.length ? renderMetasList(activas) : `
+        <div class="empty-state">
+          <div class="es-emoji">🎯</div>
+          <div class="es-text">Sin metas activas.<br>Crea tu primera meta abajo.</div>
+        </div>`}
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Nueva meta</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="chip-big" onclick="openMetaModal('evento')" style="cursor:pointer">
+          <span class="ce">🎯</span><span class="cn">Evento</span>
+        </div>
+        <div class="chip-big" onclick="openMetaModal('reto')" style="cursor:pointer">
+          <span class="ce">💪</span><span class="cn">Reto</span>
+        </div>
+        <div class="chip-big" onclick="openMetaModal('ahorro')" style="cursor:pointer">
+          <span class="ce">💰</span><span class="cn">Ahorro</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderMetasList(metas) {
+  const totals = {};
+  gastosMes.forEach(g=>{ totals[g.categoria]=(totals[g.categoria]||0)+g.monto; });
+
+  return metas.map(m => {
+    if (m.tipo === 'evento') return renderMetaEvento(m);
+    if (m.tipo === 'reto')   return renderMetaReto(m, totals);
+    if (m.tipo === 'ahorro') return renderMetaAhorro(m);
+    return '';
+  }).join('');
+}
+
+function renderMetaEvento(m) {
+  const ahorrado = m.ahorrado || 0;
+  const pct = m.meta > 0 ? Math.min((ahorrado/m.meta)*100,100) : 0;
+  const hoy = new Date();
+  const fin = new Date(m.fechaFin+'T12:00:00');
+  const mesesRestantes = Math.max(0, (fin.getFullYear()-hoy.getFullYear())*12 + (fin.getMonth()-hoy.getMonth()));
+  const faltante = Math.max(0, m.meta - ahorrado);
+  const porMes = mesesRestantes > 0 ? Math.ceil(faltante/mesesRestantes) : faltante;
+  const badge = pct>=100?'badge-ok':mesesRestantes<=1?'badge-over':'badge-ok';
+  const badgeTxt = pct>=100?'Completada':mesesRestantes+' meses';
+
+  return `<div class="meta-card">
+    <div class="mc-top">
+      <span class="mc-emoji">${m.emoji}</span>
+      <div class="mc-info"><div class="mc-name">${m.nombre}</div>
+      <div class="mc-sub">Meta: ${fmxn(m.meta)} · ${m.fechaFin}</div></div>
+      <span class="mc-badge ${badge}">${badgeTxt}</span>
+    </div>
+    <div class="mc-prog"><div class="mc-prog-fill green" style="width:${pct.toFixed(1)}%"></div></div>
+    <div class="mc-nums"><span>${fmxn(ahorrado)} ahorrado</span><span>${fmxn(m.meta)}</span></div>
+    ${faltante>0&&mesesRestantes>0?`<div class="mc-detail">Necesitas <strong>${fmxn(porMes)}/mes</strong> para llegar a tiempo</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn-secondary" style="flex:1;padding:9px;font-size:12px" onclick="openAbono('${m.id}')">💰 Abonar</button>
+      <button style="flex:1;padding:9px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar</button>
+    </div>
+  </div>`;
+}
+
+function renderMetaReto(m, totals) {
+  const gastado = totals[m.categoria] || 0;
+  const pct = m.meta > 0 ? Math.min((gastado/m.meta)*100,100) : 0;
+  const logrado = gastado <= m.meta;
+  const fc = pct>=100?'over':pct>=80?'warn':'';
+  const badge = logrado ? 'badge-ok' : 'badge-over';
+
+  return `<div class="meta-card">
+    <div class="mc-top">
+      <span class="mc-emoji">${m.emoji}</span>
+      <div class="mc-info"><div class="mc-name">${m.nombre}</div>
+      <div class="mc-sub">Límite reto: ${fmxn(m.meta)} este mes</div></div>
+      <span class="mc-badge ${badge}">${logrado?'✓ OK':'⚠️ Excedido'}</span>
+    </div>
+    <div class="mc-prog"><div class="mc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div>
+    <div class="mc-nums"><span>${fmxn(gastado)} gastado</span><span>/ ${fmxn(m.meta)}</span></div>
+    ${!logrado?`<div class="mc-detail" style="color:var(--danger)">Te pasaste <strong>${fmxn(gastado-m.meta)}</strong> de tu reto</div>`:`<div class="mc-detail">¡Vas bien! Te quedan <strong>${fmxn(m.meta-gastado)}</strong></div>`}
+    <button style="margin-top:10px;width:100%;padding:8px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar reto</button>
+  </div>`;
+}
+
+function renderMetaAhorro(m) {
+  const ahorrado = m.ahorrado || 0;
+  const pct = m.meta > 0 ? Math.min((ahorrado/m.meta)*100,100) : 0;
+  const fc = pct>=100?'green':pct>=80?'warn':'';
+  const badge = pct>=100?'badge-ok':pct>=50?'badge-warn':'badge-over';
+
+  return `<div class="meta-card">
+    <div class="mc-top">
+      <span class="mc-emoji">${m.emoji}</span>
+      <div class="mc-info"><div class="mc-name">${m.nombre}</div>
+      <div class="mc-sub">Meta mensual: ${fmxn(m.meta)}</div></div>
+      <span class="mc-badge ${badge}">${pct.toFixed(0)}%</span>
+    </div>
+    <div class="mc-prog"><div class="mc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div>
+    <div class="mc-nums"><span>${fmxn(ahorrado)} ahorrado</span><span>/ ${fmxn(m.meta)}</span></div>
+    <div class="mc-detail">Acumulado total: <strong>${fmxn(m.totalAcumulado||ahorrado)}</strong></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn-secondary" style="flex:1;padding:9px;font-size:12px" onclick="openAbono('${m.id}')">💰 Abonar</button>
+      <button style="flex:1;padding:9px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar</button>
+    </div>
+  </div>`;
+}
+
+function filterMetas(tipo, btn) {
+  document.querySelectorAll('.mtype-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const activas = tipo==='todas' ? metas.filter(m=>m.activo!==false) : metas.filter(m=>m.tipo===tipo&&m.activo!==false);
+  document.getElementById('metas-list').innerHTML = activas.length ? renderMetasList(activas) :
+    `<div class="empty-state"><div class="es-emoji">🎯</div><div class="es-text">Sin metas de este tipo.</div></div>`;
+}
+
+function openMetaModal(tipo) {
+  const cats = getCats();
+  document.getElementById('modal-meta-title').textContent =
+    tipo==='evento'?'Nueva meta de evento':tipo==='reto'?'Nuevo reto de control':'Nuevo ahorro recurrente';
+
+  const body = tipo==='evento' ? `
+    <div class="form-group">
+      <label class="form-label">Emoji</label>
+      <input type="text" class="form-input" id="meta-emoji" placeholder="🎯" maxlength="4" style="font-size:28px;text-align:center">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input type="text" class="form-input" id="meta-nombre" placeholder="ej. Valle de Guadalupe">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Monto objetivo</label>
+      <input type="number" class="form-input" id="meta-monto" placeholder="$0" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha límite</label>
+      <input type="date" class="form-input" id="meta-fecha-fin">
+    </div>
+    <button class="btn-submit" onclick="saveMeta('evento')">Crear meta</button>
+  ` : tipo==='reto' ? `
+    <div class="form-group">
+      <label class="form-label">Emoji</label>
+      <input type="text" class="form-input" id="meta-emoji" placeholder="💪" maxlength="4" style="font-size:28px;text-align:center">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre del reto</label>
+      <input type="text" class="form-input" id="meta-nombre" placeholder="ej. Bajar Salidas">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Categoría a controlar</label>
+      <div class="cat-grid-modal" id="meta-cat-grid">
+        ${cats.map(c=>`<div class="cat-chip-m" data-cat="${c.id}" onclick="selMetaCat(this)"><span class="ce">${c.e}</span>${c.l}</div>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Límite del reto (mensual)</label>
+      <input type="number" class="form-input" id="meta-monto" placeholder="$0" inputmode="decimal">
+    </div>
+    <div class="form-group" style="background:rgba(241,193,102,0.1);border-radius:10px;padding:10px 12px">
+      <div style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">⚠️ Este reto se reinicia automáticamente cada mes</div>
+    </div>
+    <button class="btn-submit" onclick="saveMeta('reto')">Crear reto</button>
+  ` : `
+    <div class="form-group">
+      <label class="form-label">Emoji</label>
+      <input type="text" class="form-input" id="meta-emoji" placeholder="💰" maxlength="4" style="font-size:28px;text-align:center">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input type="text" class="form-input" id="meta-nombre" placeholder="ej. Fondo de emergencia">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Meta mensual</label>
+      <input type="number" class="form-input" id="meta-monto" placeholder="$0" inputmode="decimal">
+    </div>
+    <div class="form-group" style="background:rgba(241,193,102,0.1);border-radius:10px;padding:10px 12px">
+      <div style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">ℹ️ El saldo no acumula mes a mes — cada mes empieza en $0</div>
+    </div>
+    <button class="btn-submit" onclick="saveMeta('ahorro')">Crear meta de ahorro</button>
+  `;
+
+  document.getElementById('modal-meta-body').innerHTML = body;
+  document.getElementById('modal-meta').classList.add('open');
+}
+
+function selMetaCat(el) {
+  document.querySelectorAll('#meta-cat-grid .cat-chip-m').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function saveMeta(tipo) {
+  const emoji  = document.getElementById('meta-emoji').value.trim();
+  const nombre = document.getElementById('meta-nombre').value.trim();
+  const monto  = parseFloat(document.getElementById('meta-monto').value);
+
+  if (!emoji)  { showToast('El emoji es obligatorio'); return; }
+  if (!nombre) { showToast('Ingresa un nombre'); return; }
+  if (!monto||monto<=0) { showToast('Ingresa un monto válido'); return; }
+
+  // Validación presupuesto (advertencia, no bloqueo)
+  const ingreso = currentAcct==='casa' ? 44500 : (userConfig?.ingreso||0);
+  const fijos   = currentAcct==='casa' ? DEFAULT_FIJOS : (userConfig?.fijos||[]);
+  const totalFijos = fijos.reduce((s,f)=>s+(f.monto||0),0);
+  const disponible = ingreso - totalFijos;
+
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const totalMetas = metas.filter(m=>m.activo!==false&&m.tipo!=='reto').reduce((s,m)=>s+(m.meta||0),0);
+
+  if (totalMetas + monto > disponible) {
+    showToast('⚠️ Esta meta supera tu disponible — considera ajustarla');
+  }
+
+  const meta = {
+    id:       uid(),
+    tipo,
+    emoji,
+    nombre,
+    meta:     monto,
+    ahorrado: 0,
+    abonos:   [],
+    activo:   true,
+    creadoEn: today()
+  };
+
+  if (tipo==='evento') {
+    const fechaFin = document.getElementById('meta-fecha-fin').value;
+    if (!fechaFin) { showToast('Selecciona una fecha límite'); return; }
+    meta.fechaFin = fechaFin;
+  }
+
+  if (tipo==='reto') {
+    const catEl = document.querySelector('#meta-cat-grid .cat-chip-m.selected');
+    if (!catEl) { showToast('Selecciona una categoría'); return; }
+    meta.categoria = catEl.dataset.cat;
+  }
+
+  if (tipo==='ahorro') {
+    meta.totalAcumulado = 0;
+  }
+
+  metas.push(meta);
+  sls(`pb_metas_${currentAcct}`, metas);
+
+  // Guardar en Sheet
+  if (isOnline) {
+    postAPI({action:'saveMeta',token:TOKEN,meta,userId:currentAcct}).catch(()=>{});
+  }
+
+  document.getElementById('modal-meta').classList.remove('open');
+  showToast('Meta creada ✓');
+  rMetas();
+}
+
+function openAbono(metaId) {
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const meta  = metas.find(m=>m.id===metaId);
+  if (!meta) return;
+  document.getElementById('abono-meta-name').textContent = `${meta.emoji} ${meta.nombre}`;
+  document.getElementById('inp-abono-monto').value = '';
+  document.getElementById('inp-abono-nota').value  = '';
+  document.getElementById('modal-abono').dataset.metaId = metaId;
+  document.getElementById('modal-abono').classList.add('open');
+  setTimeout(()=>document.getElementById('inp-abono-monto').focus(),300);
+}
+
+function submitAbono() {
+  const metaId = document.getElementById('modal-abono').dataset.metaId;
+  const monto  = parseFloat(document.getElementById('inp-abono-monto').value);
+  const nota   = document.getElementById('inp-abono-nota').value.trim();
+
+  if (!monto||monto<=0) { showToast('Ingresa un monto válido'); return; }
+
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const meta  = metas.find(m=>m.id===metaId);
+  if (!meta) return;
+
+  meta.ahorrado = (meta.ahorrado||0) + monto;
+  if (meta.tipo==='ahorro') meta.totalAcumulado = (meta.totalAcumulado||0) + monto;
+  meta.abonos = meta.abonos || [];
+  meta.abonos.push({ fecha:today(), monto, nota });
+
+  sls(`pb_metas_${currentAcct}`, metas);
+
+  // También registrar como gasto de categoría ahorro en el Sheet
+  if (isOnline) {
+    postAPI({action:'registrarGasto',token:TOKEN,fecha:today(),categoria:'ahorro',
+      monto,quien:currentAcct==='casa'?'Casa':(userConfig?.nombre||'Usuario'),
+      nota:`Abono: ${meta.nombre}${nota?' · '+nota:''}`,pago:'',userId:currentAcct}).catch(()=>{});
+  }
+
+  document.getElementById('modal-abono').classList.remove('open');
+  showToast(`Abono de ${fmxn(monto)} registrado ✓`);
+  rMetas();
+}
+
+function archivarMeta(metaId) {
+  const metas = gls(`pb_metas_${currentAcct}`) || [];
+  const meta  = metas.find(m=>m.id===metaId);
+  if (!meta) return;
+  meta.activo = false;
+  sls(`pb_metas_${currentAcct}`, metas);
+  showToast('Meta archivada');
+  rMetas();
+}
+
+// ── Override rResumen to include extra income ──
+const _rResumenOrig = rResumen;
+function rResumen() {
+  const fijos    = currentAcct==='casa' ? DEFAULT_FIJOS : (userConfig?.fijos || DEFAULT_FIJOS);
+  const ingreso  = currentAcct==='casa' ? 44500 : (userConfig?.ingreso || 0);
+  const extras   = getIngresosExtra();
+  const totalExtra = extras.reduce((s,i)=>s+(i.monto||0),0);
+  const ingresoTotal = ingreso + totalExtra;
+  const totalFij = fijos.reduce((s,f)=>s+(f.monto||0),0);
+  const totalVar = gastosMes.reduce((s,g)=>s+g.monto,0);
+  const disp     = ingresoTotal - totalFij - totalVar;
+
+  const totals = {};
+  gastosMes.forEach(g=>{ totals[g.categoria]=(totals[g.categoria]||0)+g.monto; });
+  const pagoTotals = {};
+  gastosMes.forEach(g=>{ const p=g.pago||'Sin especificar'; pagoTotals[p]=(pagoTotals[p]||0)+g.monto; });
+  const cats = getCats();
+  const maxAmt = Math.max(...cats.map(c=>totals[c.id]||0), 1);
+
+  document.getElementById('resumen-content').innerHTML = `
+    <div class="res-balance">
+      <div class="rb"><div class="rb-label">Ingreso</div><div class="rb-val">${fmxn(ingresoTotal)}</div></div>
+      <div class="rb"><div class="rb-label">Variable</div><div class="rb-val warn">${fmxn(totalVar)}</div></div>
+      <div class="rb"><div class="rb-label">Disponible</div><div class="rb-val ${disp>=0?'green':'warn'}">${fmxn(Math.abs(disp))}</div></div>
+    </div>
+    ${totalExtra>0?`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--success)">💰 Ingresos extra este mes: ${fmxn(totalExtra)}</div>`:''}
+    <div class="res-section">Por categoría</div>
+    ${cats.map(c=>{
+      const spent=totals[c.id]||0;
+      const lim=budgets[c.id]||c.b||0;
+      const pct=lim>0?Math.min((spent/lim)*100,100):Math.min((spent/maxAmt)*100,100);
+      const fc=lim>0&&spent>lim?'over':lim>0&&spent>lim*0.8?'warn':'';
+      return `<div class="res-cat-row">
+        <span class="res-cat-emoji">${c.e}</span>
+        <span class="res-cat-name">${c.l}</span>
+        <div class="res-cat-bar"><div class="res-cat-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div>
+        <span class="res-cat-amt">${fmxn(spent)}</span>
+      </div>`;
+    }).join('')}
+    <div class="res-section">Método de pago</div>
+    <div class="pago-card">
+      ${Object.entries(pagoTotals).length
+        ? Object.entries(pagoTotals).sort((a,b)=>b[1]-a[1]).map(([p,amt])=>`
+          <div class="pago-row"><span class="pago-label">${p}</span><span class="pago-val">${fmxn(amt)}</span></div>`).join('')
+        : `<div style="text-align:center;padding:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin datos de pago aún</div>`}
+    </div>`;
+}
+
+
+// ════════════════════════════════════════════════════════════
+// EDITOR DE TEMA PERSONALIZADO
+// ════════════════════════════════════════════════════════════
+const COLOR_FIELDS = [
+  { key:'p',   label:'Color principal',       hint:'Header, botones, nav' },
+  { key:'s',   label:'Color secundario',      hint:'Barras, acentos' },
+  { key:'acc', label:'Color de alerta',       hint:'Montos excedidos' },
+  { key:'bg',  label:'Fondo general',         hint:'Color de pantallas' },
+];
+
+function renderColorPickers(cfg) {
+  const email   = currentUser?.email || 'default';
+  const saved   = gls('custom_theme_' + email) || {};
+  const base    = THEMES.find(t=>t.id==='mayne');
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    ${COLOR_FIELDS.map(f=>`
+      <div style="background:var(--card);border-radius:10px;padding:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif;margin-bottom:2px">${f.label}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">${f.hint}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="color" id="cp-${f.key}" value="${saved[f.key]||base[f.key]}"
+            style="width:40px;height:40px;border:none;border-radius:8px;cursor:pointer;padding:2px;background:none">
+          <div id="cp-val-${f.key}" style="font-size:11px;font-family:monospace;color:var(--muted)">${saved[f.key]||base[f.key]}</div>
+        </div>
+      </div>`).join('')}
+  </div>
+  <div style="margin-top:10px;background:var(--card);border-radius:10px;padding:10px;border:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Vista previa</div>
+    <div id="theme-preview-bar" style="height:8px;border-radius:4px;background:linear-gradient(to right,${saved.p||base.p},${saved.s||base.s},${saved.acc||base.acc})"></div>
+  </div>`;
+}
+
+// Live update color value display
+document.addEventListener('input', e => {
+  if (e.target.type === 'color' && e.target.id?.startsWith('cp-')) {
+    const key = e.target.id.replace('cp-','');
+    const val = document.getElementById('cp-val-'+key);
+    if (val) val.textContent = e.target.value;
+    // Update preview bar
+    const bar = document.getElementById('theme-preview-bar');
+    if (bar) {
+      const p   = document.getElementById('cp-p')?.value   || '';
+      const s   = document.getElementById('cp-s')?.value   || '';
+      const acc = document.getElementById('cp-acc')?.value || '';
+      if (p && s && acc) bar.style.background = `linear-gradient(to right,${p},${s},${acc})`;
+    }
+  }
+});
+
+function saveCustomTheme() {
+  const email = currentUser?.email || 'default';
+  const theme = {};
+  COLOR_FIELDS.forEach(f => {
+    const input = document.getElementById('cp-'+f.key);
+    if (input) theme[f.key] = input.value;
+  });
+  // Build swatches array
+  theme.swatches = [theme.p, theme.s, theme.acc, theme.bg, '#ffffff'];
+  // Update THEMES[2] (custom)
+  THEMES[2] = {...THEMES[2], ...theme};
+  sls('custom_theme_' + email, theme);
+  if (userConfig) { userConfig.tema = 'custom'; sls('config_'+email, userConfig); }
+  applyTheme('custom');
+  showToast('Tema personalizado aplicado ✓');
+  renderSettings();
+}
+
+// Toggle custom editor visibility
+function selTheme(id) {
+  applyTheme(id);
+  const editor = document.getElementById('custom-theme-editor');
+  if (editor) editor.style.display = id==='custom' ? 'block' : 'none';
+  if (userConfig) { userConfig.tema=id; sls('config_'+currentUser.email,userConfig); }
+  // Update selected state
+  document.querySelectorAll('.theme-card-s').forEach((el,i)=>{
+    el.classList.toggle('sel', THEMES[i]?.id===id);
+  });
+  if (isOnline&&userConfig) postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════════════
+// IMAGEN DE FONDO
+// ════════════════════════════════════════════════════════════
+function handleBgImage(input) {
+  const file = input.files[0]; if (!file) return;
+  // Resize to max 1200px to keep localStorage size reasonable
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX/w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX/h); h = MAX; }
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.75);
+      const email = currentUser?.email || 'default';
+      sls('bg_image_' + email, compressed);
+      if (userConfig) {
+        userConfig.bgImage = compressed;
+        sls('config_'+email, userConfig);
+      }
+      applyBgImage();
+      renderSettings();
+      showToast('Imagen de fondo aplicada ✓');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeBgImage() {
+  const email = currentUser?.email || 'default';
+  localStorage.removeItem(sk('bg_image_' + email));
+  if (userConfig) { delete userConfig.bgImage; sls('config_'+email, userConfig); }
+  document.documentElement.style.removeProperty('--bg-image');
+  document.body.classList.remove('has-bg-image');
+  renderSettings();
+  showToast('Imagen de fondo eliminada');
+}
+
 // ════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════
@@ -1650,6 +2622,7 @@ applyTheme('mayne');
 const savedUser = gls('user');
 if (savedUser) {
   currentUser = savedUser;
+  applyBgImage(); // Apply bg image immediately on restore
   afterLogin();
 }
 
