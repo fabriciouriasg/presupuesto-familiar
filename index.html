@@ -1039,11 +1039,6 @@ function showHome() {
   currentUser = gls('user') || currentUser;
   showScreen('home');
   renderHome();
-  // Check mandatory flows after short delay
-  setTimeout(() => {
-    checkCierreMes();
-    checkDomingo();
-  }, 600);
 }
 
 function renderHome() {
@@ -1116,6 +1111,11 @@ async function openAccount(acct) {
   buildCatGridModal();
   buildPagoGrid();
   await loadData();
+  // Ambos checks DENTRO de la cuenta, después de cargar datos
+  setTimeout(() => {
+    checkCierreMes();
+    checkDomingo();
+  }, 400);
 }
 
 function goHome() {
