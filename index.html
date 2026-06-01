@@ -1945,10 +1945,14 @@ function renderSettings() {
         </div>
       </div>
 
-      <!-- EXPORTAR -->
+      <!-- DATOS -->
       <div class="settings-section">
         <div class="settings-title">Datos</div>
-        <button class="btn-secondary" onclick="exportCSV()">📥 Exportar gastos del mes (CSV)</button>
+        <button class="btn-secondary" onclick="exportCSV()" style="margin-bottom:10px">📥 Exportar gastos del mes (CSV)</button>
+        <button class="btn-secondary" onclick="crearSheetManual()" id="btn-crear-sheet">
+          🗂️ Crear / reconectar mi Google Sheet
+        </button>
+        <div id="sheet-status" style="font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-top:8px;text-align:center"></div>
       </div>`:``}
 
       <!-- SESIÓN -->
@@ -3196,6 +3200,43 @@ function removeBgImage() {
   document.body.classList.remove('has-bg-image');
   renderSettings();
   showToast('Imagen de fondo eliminada');
+}
+
+
+// ════════════════════════════════════════════════════════════
+// CREAR SHEET MANUAL
+// ════════════════════════════════════════════════════════════
+async function crearSheetManual() {
+  const btn    = document.getElementById('btn-crear-sheet');
+  const status = document.getElementById('sheet-status');
+  if (btn) { btn.disabled=true; btn.textContent='Conectando con Google Drive...'; }
+  if (status) status.textContent = '';
+
+  try {
+    // Request fresh Sheets token
+    if (status) status.textContent = 'Solicitando permisos de Google Drive...';
+    await requestSheetsAccess();
+
+    if (status) status.textContent = 'Buscando o creando tu Sheet...';
+    // Force create/find the sheet
+    const key = `pb_sheet_id_${currentUser.email}`;
+    localStorage.removeItem(key); // Clear cached ID to force fresh search
+    const sheetId = await getUserSheetId(currentUser.email);
+
+    // Save config to sheet
+    if (status) status.textContent = 'Guardando configuración...';
+    if (userConfig) await saveConfigToSheet(currentUser.email, userConfig);
+
+    if (status) status.textContent = `✅ Sheet creado correctamente. ID: ${sheetId.substring(0,12)}...`;
+    if (btn) { btn.disabled=false; btn.textContent='🗂️ Crear / reconectar mi Google Sheet'; }
+    showToast('¡Google Sheet creado en tu Drive! ✓');
+
+  } catch(e) {
+    console.error('crearSheetManual error:', e);
+    if (status) status.textContent = `❌ Error: ${e.message}`;
+    if (btn) { btn.disabled=false; btn.textContent='🗂️ Crear / reconectar mi Google Sheet'; }
+    showToast('Error al crear Sheet — intenta de nuevo');
+  }
 }
 
 // ════════════════════════════════════════════════════════════
