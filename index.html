@@ -1419,11 +1419,12 @@ async function loadHistorialMeses() {
     if (isCasa) {
       const res = await fetchGet(`action=getHistorico&userId=casa`);
       if (res.ok && res.historico) {
-        // historico comes as summary — fetch full gastos for each month
-        const mesActual = getMesNombre();
-        // We already have current month in gastosMes
-        // For older months, show summary only
-        renderHistorialSummary(res.historico);
+        // Normalize mes field in historico
+        const normalized = res.historico.map(h => ({
+          ...h,
+          mes: normalizarMesDisplay(h.mes) || h.mes
+        })).filter(h => h.mes && !h.mes.includes('GMT'));
+        renderHistorialSummary(normalized);
         return;
       }
     } else {
@@ -1436,28 +1437,63 @@ async function loadHistorialMeses() {
   }
 }
 
+function normalizarMesDisplay(mesRaw) {
+  if (!mesRaw) return null; // Skip empty
+  const s = String(mesRaw).trim();
+  // If it looks like a full date string, parse and reformat
+  if (s.includes('GMT') || s.includes('2026') && s.length > 12) {
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        return MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+      }
+    } catch(e) {}
+  }
+  // If it's just "Mayo" without year, add current year
+  const found = MONTHS.find(m => s.toLowerCase().startsWith(m.toLowerCase()));
+  if (found) {
+    const parts = s.split(' ');
+    if (parts.length === 1) return found + ' ' + new Date().getFullYear();
+    return found + ' ' + parts[parts.length-1];
+  }
+  return s;
+}
+
 function renderHistorialSummary(historico) {
   const cont = document.getElementById('historial-meses-container');
   if (!cont) return;
-  if (!historico.length) {
+
+  // Normalize and filter out invalid entries
+  const normalized = historico
+    .map(h => ({...h, mesDisplay: normalizarMesDisplay(h.mes)}))
+    .filter(h => h.mesDisplay !== null)
+    .sort((a,b) => {
+      const [ma,ya] = (a.mesDisplay||'').split(' ');
+      const [mb,yb] = (b.mesDisplay||'').split(' ');
+      if (ya !== yb) return parseInt(yb||0) - parseInt(ya||0);
+      return MONTHS.indexOf(mb) - MONTHS.indexOf(ma);
+    });
+
+  if (!normalized.length) {
     cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
     return;
   }
-  cont.innerHTML = historico.map(h => `
-    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mes}', null)">
+
+  cont.innerHTML = normalized.map(h => `
+    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mesDisplay}', null)">
       <div class="historial-mes-header">
         <div>
-          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mes}</div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mesDisplay}</div>
           <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${h.count} registros</div>
         </div>
-        <div style="text-align:right">
+        <div style="text-align:right;display:flex;align-items:center;gap:10px">
           <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(h.total)}</div>
           <div class="historial-arrow">›</div>
         </div>
       </div>
       <div class="historial-mes-body" style="display:none">
         <div style="padding:10px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">
-          Cargando gastos de ${h.mes}...
+          Cargando gastos de ${h.mesDisplay}...
         </div>
       </div>
     </div>`).join('');
@@ -1470,8 +1506,15 @@ function renderHistorialFull(allGastos) {
   // Group by mes
   const groups = {};
   allGastos.forEach(g => {
-    const d = new Date(g.fecha + 'T12:00:00');
-    const mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    // Use fecha to determine month (most reliable)
+    let mesKey;
+    if (g.fecha && g.fecha.length >= 7) {
+      const d = new Date(g.fecha + 'T12:00:00');
+      if (!isNaN(d.getTime())) {
+        mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+      }
+    }
+    if (!mesKey) mesKey = normalizarMesDisplay(g.mes) || 'Sin fecha';
     if (!groups[mesKey]) groups[mesKey] = { mes: mesKey, gastos: [], total: 0 };
     groups[mesKey].gastos.push(g);
     groups[mesKey].total += g.monto;
@@ -2942,11 +2985,12 @@ async function loadHistorialMeses() {
     if (isCasa) {
       const res = await fetchGet(`action=getHistorico&userId=casa`);
       if (res.ok && res.historico) {
-        // historico comes as summary — fetch full gastos for each month
-        const mesActual = getMesNombre();
-        // We already have current month in gastosMes
-        // For older months, show summary only
-        renderHistorialSummary(res.historico);
+        // Normalize mes field in historico
+        const normalized = res.historico.map(h => ({
+          ...h,
+          mes: normalizarMesDisplay(h.mes) || h.mes
+        })).filter(h => h.mes && !h.mes.includes('GMT'));
+        renderHistorialSummary(normalized);
         return;
       }
     } else {
@@ -2959,28 +3003,63 @@ async function loadHistorialMeses() {
   }
 }
 
+function normalizarMesDisplay(mesRaw) {
+  if (!mesRaw) return null; // Skip empty
+  const s = String(mesRaw).trim();
+  // If it looks like a full date string, parse and reformat
+  if (s.includes('GMT') || s.includes('2026') && s.length > 12) {
+    try {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        return MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+      }
+    } catch(e) {}
+  }
+  // If it's just "Mayo" without year, add current year
+  const found = MONTHS.find(m => s.toLowerCase().startsWith(m.toLowerCase()));
+  if (found) {
+    const parts = s.split(' ');
+    if (parts.length === 1) return found + ' ' + new Date().getFullYear();
+    return found + ' ' + parts[parts.length-1];
+  }
+  return s;
+}
+
 function renderHistorialSummary(historico) {
   const cont = document.getElementById('historial-meses-container');
   if (!cont) return;
-  if (!historico.length) {
+
+  // Normalize and filter out invalid entries
+  const normalized = historico
+    .map(h => ({...h, mesDisplay: normalizarMesDisplay(h.mes)}))
+    .filter(h => h.mesDisplay !== null)
+    .sort((a,b) => {
+      const [ma,ya] = (a.mesDisplay||'').split(' ');
+      const [mb,yb] = (b.mesDisplay||'').split(' ');
+      if (ya !== yb) return parseInt(yb||0) - parseInt(ya||0);
+      return MONTHS.indexOf(mb) - MONTHS.indexOf(ma);
+    });
+
+  if (!normalized.length) {
     cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin historial disponible</div>`;
     return;
   }
-  cont.innerHTML = historico.map(h => `
-    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mes}', null)">
+
+  cont.innerHTML = normalized.map(h => `
+    <div class="historial-mes-card" onclick="toggleHistorialMes(this, '${h.mesDisplay}', null)">
       <div class="historial-mes-header">
         <div>
-          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mes}</div>
+          <div style="font-size:14px;color:var(--text);font-weight:400">${h.mesDisplay}</div>
           <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${h.count} registros</div>
         </div>
-        <div style="text-align:right">
+        <div style="text-align:right;display:flex;align-items:center;gap:10px">
           <div style="font-size:15px;color:var(--acc);font-weight:600;font-family:'Helvetica Neue',sans-serif">${fmxn(h.total)}</div>
           <div class="historial-arrow">›</div>
         </div>
       </div>
       <div class="historial-mes-body" style="display:none">
         <div style="padding:10px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">
-          Cargando gastos de ${h.mes}...
+          Cargando gastos de ${h.mesDisplay}...
         </div>
       </div>
     </div>`).join('');
@@ -2993,8 +3072,15 @@ function renderHistorialFull(allGastos) {
   // Group by mes
   const groups = {};
   allGastos.forEach(g => {
-    const d = new Date(g.fecha + 'T12:00:00');
-    const mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    // Use fecha to determine month (most reliable)
+    let mesKey;
+    if (g.fecha && g.fecha.length >= 7) {
+      const d = new Date(g.fecha + 'T12:00:00');
+      if (!isNaN(d.getTime())) {
+        mesKey = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+      }
+    }
+    if (!mesKey) mesKey = normalizarMesDisplay(g.mes) || 'Sin fecha';
     if (!groups[mesKey]) groups[mesKey] = { mes: mesKey, gastos: [], total: 0 };
     groups[mesKey].gastos.push(g);
     groups[mesKey].total += g.monto;
