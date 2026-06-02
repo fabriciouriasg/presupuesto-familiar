@@ -1532,6 +1532,128 @@ async function ejecutarExportHistorial(){
 // ════════════════════════════════════════════════════════════
 async function crearSheetManual(){const btn=document.getElementById('btn-crear-sheet');const status=document.getElementById('sheet-status');if(btn){btn.disabled=true;btn.textContent='Conectando con Google Drive...';}if(status)status.textContent='';try{if(status)status.textContent='Solicitando permisos de Google Drive...';await requestSheetsAccess();if(status)status.textContent='Buscando o creando tu Sheet...';const key=`pb_sheet_id_${currentUser.email}`;localStorage.removeItem(key);const sheetId=await getUserSheetId(currentUser.email);if(status)status.textContent='Guardando configuración...';if(userConfig)await saveConfigToSheet(currentUser.email,userConfig);if(status)status.textContent=`✅ Sheet creado. ID: ${sheetId.substring(0,12)}...`;if(btn){btn.disabled=false;btn.textContent='🗂️ Crear / reconectar mi Google Sheet';}showToast('¡Google Sheet creado en tu Drive! ✓');}catch(e){if(status)status.textContent=`❌ Error: ${e.message}`;if(btn){btn.disabled=false;btn.textContent='🗂️ Crear / reconectar mi Google Sheet';}showToast('Error al crear Sheet');}}
 
+
+// ════════════════════════════════════════════════════════════
+// HISTORIAL — helpers de sumario y dropdowns
+// ════════════════════════════════════════════════════════════
+function buildCatSummary(catTotals){
+  const cats=getCats();
+  const rows=cats.map(c=>{
+    const spent=catTotals[c.id]||0;if(spent===0)return null;
+    const lim=budgets[c.id]||c.b||0;const rem=lim-spent;
+    const pct=lim>0?Math.min((spent/lim)*100,100):0;
+    const fillColor=lim>0&&spent>lim?'var(--danger)':lim>0&&spent>lim*0.8?'var(--miel)':'var(--s)';
+    const remColor=rem<0?'color:var(--danger)':'color:var(--success)';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:'Helvetica Neue',sans-serif">
+      <span style="font-size:16px;width:22px;text-align:center;flex-shrink:0">${c.e}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+          <span style="font-weight:600;color:var(--text)">${c.l}</span>
+          <span style="font-weight:700;color:var(--acc)">${fmxn(spent)}</span>
+        </div>
+        ${lim>0?`<div style="height:4px;background:rgba(84,41,22,0.08);border-radius:2px;overflow:hidden;margin-bottom:3px"><div style="height:100%;border-radius:2px;background:${fillColor};width:${pct.toFixed(1)}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
+          <span>Límite: ${fmxn(lim)}</span>
+          <span style="${remColor}">Rem: ${rem<0?'−'+fmxn(Math.abs(rem)):fmxn(rem)}</span>
+        </div>`:`<div style="font-size:10px;color:var(--muted)">Sin límite asignado</div>`}
+      </div>
+    </div>`;
+  }).filter(Boolean);
+  if(!rows.length)return '';
+  return `<div style="padding:14px;border-bottom:1px solid var(--border)">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Por categoría</div>
+    ${rows.join('')}
+  </div>`;
+}
+
+function buildCatDropdowns(gastos){
+  const byCat={};
+  gastos.forEach(g=>{if(!byCat[g.categoria])byCat[g.categoria]=[];byCat[g.categoria].push(g);});
+  const catEntries=Object.entries(byCat).map(([catId,gs])=>({catId,gs,total:gs.reduce((s,g)=>s+g.monto,0)})).sort((a,b)=>b.total-a.total);
+  const suffix=Math.random().toString(36).substr(2,5);
+  return `<div style="padding:10px 14px 14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:8px">Detalle de gastos</div>
+    ${catEntries.map(({catId,gs,total})=>{
+      const c=getCat(catId);const dropId=`drop-${suffix}-${catId}`;
+      return `<div style="margin-bottom:6px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div onclick="toggleCatDrop('${dropId}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--surface)">
+          <span style="font-size:16px">${c.e}</span>
+          <span style="flex:1;font-size:12px;font-weight:600;font-family:'Helvetica Neue',sans-serif;color:var(--text)">${c.l}</span>
+          <span style="font-size:12px;font-weight:700;font-family:'Helvetica Neue',sans-serif;color:var(--acc)">${fmxn(total)}</span>
+          <span style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${gs.length} gasto${gs.length>1?'s':''}</span>
+          <span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s">›</span>
+        </div>
+        <div id="${dropId}" style="display:none;background:var(--card)">
+          ${gs.sort((a,b)=>b.fecha>a.fecha?1:-1).map(e=>{
+            const eData={rowIndex:e.rowIndex,fecha:e.fecha,nota:e.nota||'',monto:e.monto,pago:e.pago||'',categoria:e.categoria};
+            const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));
+            return `<div style="display:flex;align-items:center;gap:8px;padding:9px 12px 9px 16px;border-top:1px solid var(--border)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.nota||e.categoria}</div>
+                <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:1px">${e.fecha}${e.pago?' · '+e.pago:''}</div>
+              </div>
+              <div style="font-size:13px;font-weight:700;color:var(--acc);font-family:'Helvetica Neue',sans-serif;flex-shrink:0">${fmxn(e.monto)}</div>
+              <button onclick="abrirEditGastoHistorial('${encoded}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0">✏️</button>
+              <button onclick="confirmarEliminarGastoHistorial(${e.rowIndex},'${(e.nota||e.categoria).replace(/'/g,'')}')" style="background:rgba(161,58,30,0.08);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0">🗑️</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ── Editar gasto desde historial o gastos recientes ──
+function abrirEditGastoHistorial(encoded){
+  let gasto;
+  try{gasto=JSON.parse(decodeURIComponent(escape(atob(encoded))));}catch(e){try{gasto=JSON.parse(atob(encoded));}catch(e2){showToast('Error al abrir editor');return;}}
+  document.getElementById('modal-gasto-title').textContent='✏️ Editar gasto';
+  document.getElementById('inp-amount').value=gasto.monto||'';
+  document.getElementById('inp-desc').value=gasto.nota||'';
+  document.getElementById('inp-note').value='';
+  document.getElementById('inp-fecha').value=gasto.fecha||today();
+  buildCatGridModal();buildPagoGrid();
+  setTimeout(()=>{
+    const catChip=document.querySelector(`.cat-chip-m[data-cat="${gasto.categoria}"]`);
+    if(catChip){document.querySelectorAll('.cat-chip-m').forEach(c=>c.classList.remove('selected'));catChip.classList.add('selected');}
+    const pagoChip=document.querySelector(`.pago-chip[data-pago="${gasto.pago}"]`);
+    if(pagoChip){document.querySelectorAll('.pago-chip').forEach(c=>c.classList.remove('selected'));pagoChip.classList.add('selected');}
+  },50);
+  document.getElementById('modal-gasto').classList.add('open');
+  const btn=document.getElementById('btn-submit-gasto');
+  btn.textContent='Guardar cambios';btn.disabled=false;
+  btn.onclick=()=>guardarEdicionGastoHistorial(gasto);
+}
+
+async function guardarEdicionGastoHistorial(gastoOriginal){
+  const amount=parseFloat(document.getElementById('inp-amount').value);
+  const desc=document.getElementById('inp-desc').value.trim();
+  const nota=document.getElementById('inp-note').value.trim();
+  const fecha=document.getElementById('inp-fecha').value;
+  const catEl=document.querySelector('.cat-chip-m.selected');
+  const pagoEl=document.querySelector('.pago-chip.selected');
+  if(!amount||amount<=0){showToast('Ingresa un monto válido');return;}
+  if(!desc){showToast('Agrega una descripción');return;}
+  if(!catEl){showToast('Selecciona una categoría');return;}
+  const notaFinal=desc+(nota?' · '+nota:'');
+  const pago=pagoEl?.dataset.pago||gastoOriginal.pago||'';
+  const btn=document.getElementById('btn-submit-gasto');
+  btn.disabled=true;btn.textContent='Guardando...';
+  try{
+    if(gastoOriginal.rowIndex&&isOnline){
+      const res=await postAPI({action:'editarGasto',token:TOKEN,rowIndex:gastoOriginal.rowIndex,fecha,categoria:catEl.dataset.cat,monto:amount,nota:notaFinal,pago,userId:currentAcct==='casa'?'casa':currentAcct});
+      showToast(res.ok?'Gasto actualizado ✓':'Error al guardar');
+    }else{showToast('Sin rowIndex — no se pudo guardar en Sheet');}
+  }catch(e){showToast('Sin conexión');}
+  document.getElementById('modal-gasto').classList.remove('open');
+  document.getElementById('btn-submit-gasto').onclick=submitGasto;
+  if(isOnline)await loadData();else renderAll();
+}
+
+function confirmarEliminarGastoHistorial(rowIndex,desc){
+  showConfirm('Eliminar gasto',`¿Eliminar "${desc}"?`,'Eliminar',true,()=>eliminarGastoMes(rowIndex));
+}
+
 // ════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════
