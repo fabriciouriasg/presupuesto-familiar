@@ -829,21 +829,35 @@ function goHome(){currentAcct=null;gastosMes=[];budgets={};showScreen('home');up
 // DATA
 // ════════════════════════════════════════════════════════════
 async function loadData(){
-  document.getElementById('gastos-list').innerHTML=`<div class="loading-state"><span class="loading-spin">🐷</span>Cargando...</div>`;
-  document.getElementById('cat-chips-container').innerHTML=`<div class="loading-state"><span class="loading-spin">🐷</span>Cargando...</div>`;
-  if(!isOnline){gastosMes=gq(currentAcct).map(g=>({...g,_pending:true}));budgets={};getCats().forEach(c=>{budgets[c.id]=c.b||0;});renderAll();return;}
+  // Mostrar loading solo en los containers que existen en el nuevo layout
+  const catCont=document.getElementById('cat-chips-container');
+  if(catCont)catCont.innerHTML=`<div class="loading-state"><span class="loading-spin">🐷</span>Cargando...</div>`;
+  if(!isOnline){
+    gastosMes=gq(currentAcct).map(g=>({...g,_pending:true}));
+    budgets={};getCats().forEach(c=>{budgets[c.id]=c.b||0;});
+    renderAll();return;
+  }
   try{
-    const mes=getMesNombre();const userId=currentAcct==='casa'?'casa':currentAcct;console.log('[PB] loadData mes='+mes+' userId='+userId);
-    // Intentar con el mes tal cual, si falla intentar lowercase
-const [gRes,bRes]=await Promise.all([
-  fetchGet(`action=getGastos&mes=${encodeURIComponent(mes)}&userId=${userId}`),
-  fetchGet(`action=getBudget&mes=${encodeURIComponent(mes)}&userId=${userId}`)
-]);
-    let gastos=gRes.ok?gRes.gastos:[];
-    budgets=bRes.ok?bRes.budgets:{};getCats().forEach(c=>{if(!budgets[c.id])budgets[c.id]=c.b||0;});
+    const mes=getMesNombre();
+    const userId=currentAcct==='casa'?'casa':currentAcct;
+    const [gRes,bRes]=await Promise.all([
+      fetchGet(`action=getGastos&mes=${encodeURIComponent(mes)}&userId=${userId}`),
+      fetchGet(`action=getBudget&mes=${encodeURIComponent(mes)}&userId=${userId}`)
+    ]);
+    const gastos=gRes.ok?gRes.gastos:[];
+    budgets=bRes.ok?bRes.budgets:{};
+    getCats().forEach(c=>{if(!budgets[c.id])budgets[c.id]=c.b||0;});
     const pending=gq(currentAcct);
-    gastosMes=[...pending.map(g=>({rowIndex:null,fecha:g.fecha,categoria:g.categoria||g.category,monto:g.amount,quien:g.quien,nota:g.nota,pago:g.pago,_pending:true})),...gastos];
-  }catch(e){showToast('Error al cargar datos');gastosMes=[];}
+    gastosMes=[
+      ...pending.map(g=>({rowIndex:null,fecha:g.fecha,categoria:g.categoria||g.category,
+        monto:g.amount,quien:g.quien,nota:g.nota,pago:g.pago,_pending:true})),
+      ...gastos
+    ];
+  }catch(e){
+    console.error('loadData error:',e);
+    showToast('Error al cargar datos');
+    gastosMes=[];
+  }
   renderAll();
 }
 
