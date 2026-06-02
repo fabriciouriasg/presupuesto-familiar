@@ -123,7 +123,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-tab.active{color:var(--p);border-bottom-color:var(--s);font-weight:700}
 .tab-panel{display:none;padding:14px 14px 72px}
 .tab-panel.active{display:block}
-.has-bg-image .tab-panel,.has-bg-image #screen-home,.has-bg-image #screen-onboarding,.has-bg-image #screen-restricted,.has-bg-image #screen-settings .settings-section,.has-bg-image #screen-settings{background:transparent!important}
+.has-bg-image .tab-panel,.has-bg-image #screen-home,.has-bg-image #screen-onboarding,.has-bg-image #screen-recover,.has-bg-image #screen-restricted,.has-bg-image #screen-settings .settings-section,.has-bg-image #screen-settings{background:transparent!important}
 .has-bg-image #screen-app,.has-bg-image #screen-settings{background-image:var(--bg-image)!important;background-size:cover!important;background-position:center!important;background-attachment:fixed!important}
 .has-bg-image #screen-home{background-image:linear-gradient(160deg,var(--p)cc 0%,var(--p2)cc 50%,var(--acc)cc 100%),var(--bg-image)!important;background-size:cover!important;background-position:center!important}
 .has-bg-image .modal-sheet,.has-bg-image .expense-item,.has-bg-image .meta-card,.has-bg-image .pago-card,.has-bg-image .cc{background:rgba(255,255,255,0.92)!important;backdrop-filter:blur(8px)}
@@ -319,6 +319,27 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 </div>
 
 <!-- ══ ONBOARDING ══ -->
+<!-- ══ RECUPERAR CUENTA ══ -->
+<div id="screen-recover" class="screen">
+  <div style="min-height:100vh;background:linear-gradient(160deg,var(--p) 0%,var(--p2) 50%,var(--acc) 100%);display:flex;align-items:center;justify-content:center;padding:32px 24px">
+    <div style="width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;gap:0">
+      <div style="font-size:52px;margin-bottom:16px">🐷</div>
+      <div style="font-size:22px;color:var(--bg);font-family:'Georgia',serif;margin-bottom:8px;text-align:center" id="recover-name">Hola</div>
+      <div style="font-size:13px;color:rgba(254,250,240,0.65);font-family:'Helvetica Neue',sans-serif;text-align:center;margin-bottom:32px;line-height:1.6">
+        ¿Ya tenías PiggyBank configurado<br>en este dispositivo antes?
+      </div>
+      <button onclick="intentarRecuperar()" style="width:100%;background:var(--bg);border:none;border-radius:14px;padding:16px 20px;font-size:15px;font-family:'Georgia',serif;color:var(--p);cursor:pointer;margin-bottom:12px;font-weight:600">
+        ✅ Sí, recuperar mi configuración
+      </button>
+      <button onclick="irAlOnboarding()" style="width:100%;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.25);border-radius:14px;padding:16px 20px;font-size:15px;font-family:'Helvetica Neue',sans-serif;color:var(--bg);cursor:pointer;margin-bottom:16px">
+        🆕 No, configurar desde cero
+      </button>
+      <div id="recover-status" style="font-size:12px;color:rgba(254,250,240,0.6);font-family:'Helvetica Neue',sans-serif;text-align:center;min-height:20px"></div>
+      <button onclick="signOut()" style="background:none;border:none;color:rgba(254,250,240,0.4);font-size:12px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;text-decoration:underline;margin-top:16px">Usar otra cuenta</button>
+    </div>
+  </div>
+</div>
+
 <div id="screen-onboarding" class="screen">
   <div class="ob-container" id="ob-container"></div>
 </div>
@@ -698,9 +719,10 @@ async function afterLogin(){
       }
     }catch(e){console.log('Remote config not found, starting onboarding');}
   }
-  // 3. Sin config en ningún lado → onboarding
-  obStep=1;obData={email:currentUser.email,nombre:currentUser.name,photo:currentUser.photo,ingreso:0,fijos:JSON.parse(JSON.stringify(DEFAULT_FIJOS)),categorias:JSON.parse(JSON.stringify(DEFAULT_CATS)),pagos:[...DEFAULT_PAGOS],tema:'mayne'};
-  showScreen('onboarding');renderOnboarding();
+  // 3. Sin config en ningún lado → preguntar si ya tenía cuenta antes
+  showScreen('recover');
+  const rname=document.getElementById('recover-name');
+  if(rname)rname.textContent='Hola, '+currentUser.name.split(' ')[0]+'!';
 }
 async function solicitarAcceso(){
   const btn=document.getElementById('btn-solicitar');btn.disabled=true;btn.textContent='Enviando...';
@@ -1652,6 +1674,94 @@ async function guardarEdicionGastoHistorial(gastoOriginal){
 
 function confirmarEliminarGastoHistorial(rowIndex,desc){
   showConfirm('Eliminar gasto',`¿Eliminar "${desc}"?`,'Eliminar',true,()=>eliminarGastoMes(rowIndex));
+}
+
+
+// ════════════════════════════════════════════════════════════
+// RECUPERAR CUENTA
+// ════════════════════════════════════════════════════════════
+async function intentarRecuperar(){
+  const status=document.getElementById('recover-status');
+  if(status)status.textContent='Buscando tu configuración en Google Drive...';
+  // Necesitar token de Sheets
+  if(!window.gAccessToken){
+    try{await requestSheetsAccess();}
+    catch(e){
+      if(status)status.textContent='No se pudo conectar con Google Drive. Intenta de nuevo.';
+      return;
+    }
+  }
+  try{
+    // Buscar Sheet en Drive
+    const token=await getAccessToken();
+    const searchRes=await fetch(
+      `${DRIVE_API}/files?q=name='PiggyBank - Mis Gastos' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+      {headers:{'Authorization':'Bearer '+token}}
+    );
+    const searchData=await searchRes.json();
+    if(!searchData.files||!searchData.files.length){
+      if(status)status.textContent='No encontré tu Sheet. ¿Seguro que ya tenías PiggyBank?';
+      setTimeout(()=>{
+        if(status)status.innerHTML='<button onclick="irAlOnboarding()" style="background:rgba(255,255,255,0.15);border:none;border-radius:10px;padding:8px 16px;color:#fefaf0;font-size:12px;cursor:pointer">Configurar desde cero →</button>';
+      },2000);
+      return;
+    }
+    const sheetId=searchData.files[0].id;
+    localStorage.setItem(`pb_sheet_id_${currentUser.email}`, sheetId);
+    if(status)status.textContent='Sheet encontrado, cargando configuración...';
+    // Leer config del Sheet
+    const cfgRes=await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Configuracion!A:B`);
+    const vals=cfgRes.values||[];
+    const cfgRow=vals.find(r=>String(r[0]||'').trim()==='config_json');
+    if(cfgRow&&cfgRow[1]){
+      try{
+        const remote=JSON.parse(cfgRow[1]);
+        if(remote&&remote.nombre){
+          userConfig=remote;
+          sls('config_'+currentUser.email,userConfig);
+          applyTheme(userConfig.tema||'mayne');
+          if(status)status.textContent='✅ ¡Configuración restaurada!';
+          setTimeout(()=>showHome(),800);
+          return;
+        }
+      }catch(e){}
+    }
+    // Sheet existe pero sin config válida — intentar pestaña Config_email
+    try{
+      const cfgName='Config_'+currentUser.email.replace(/[^a-zA-Z0-9]/g,'_');
+      const cfgRes2=await sheetsRequest(`${SHEETS_API}/${sheetId}/values/${encodeURIComponent(cfgName)}!A:B`);
+      const vals2=cfgRes2.values||[];
+      const cfgRow2=vals2.find(r=>String(r[0]||'').trim()==='config_json');
+      if(cfgRow2&&cfgRow2[1]){
+        const remote2=JSON.parse(cfgRow2[1]);
+        if(remote2&&remote2.nombre){
+          userConfig=remote2;
+          sls('config_'+currentUser.email,userConfig);
+          applyTheme(userConfig.tema||'mayne');
+          if(status)status.textContent='✅ ¡Configuración restaurada!';
+          setTimeout(()=>showHome(),800);
+          return;
+        }
+      }
+    }catch(e2){}
+    // Sheet existe pero sin config — ofrecer configurar
+    if(status)status.textContent='Tu Sheet existe pero no tiene configuración guardada.';
+    setTimeout(()=>{
+      if(status)status.innerHTML='<button onclick="irAlOnboarding()" style="background:rgba(255,255,255,0.15);border:none;border-radius:10px;padding:8px 16px;color:#fefaf0;font-size:12px;cursor:pointer">Configurar desde cero →</button>';
+    },2000);
+  }catch(e){
+    console.error('Recover error:',e);
+    if(status)status.textContent='Error al conectar con Google Drive. Intenta de nuevo.';
+  }
+}
+
+function irAlOnboarding(){
+  obStep=1;
+  obData={email:currentUser.email,nombre:currentUser.name,photo:currentUser.photo,ingreso:0,
+    fijos:JSON.parse(JSON.stringify(DEFAULT_FIJOS)),
+    categorias:JSON.parse(JSON.stringify(DEFAULT_CATS)),
+    pagos:[...DEFAULT_PAGOS],tema:'mayne'};
+  showScreen('onboarding');renderOnboarding();
 }
 
 // ════════════════════════════════════════════════════════════
