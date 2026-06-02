@@ -833,8 +833,12 @@ async function loadData(){
   document.getElementById('cat-chips-container').innerHTML=`<div class="loading-state"><span class="loading-spin">🐷</span>Cargando...</div>`;
   if(!isOnline){gastosMes=gq(currentAcct).map(g=>({...g,_pending:true}));budgets={};getCats().forEach(c=>{budgets[c.id]=c.b||0;});renderAll();return;}
   try{
-    const mes=getMesNombre();const userId=currentAcct==='casa'?'casa':currentAcct;
-    const [gRes,bRes]=await Promise.all([fetchGet(`action=getGastos&mes=${encodeURIComponent(mes)}&userId=${userId}`),fetchGet(`action=getBudget&mes=${encodeURIComponent(mes)}&userId=${userId}`)]);
+    const mes=getMesNombre();const userId=currentAcct==='casa'?'casa':currentAcct;console.log('[PB] loadData mes='+mes+' userId='+userId);
+    // Intentar con el mes tal cual, si falla intentar lowercase
+const [gRes,bRes]=await Promise.all([
+  fetchGet(`action=getGastos&mes=${encodeURIComponent(mes)}&userId=${userId}`),
+  fetchGet(`action=getBudget&mes=${encodeURIComponent(mes)}&userId=${userId}`)
+]);
     let gastos=gRes.ok?gRes.gastos:[];
     budgets=bRes.ok?bRes.budgets:{};getCats().forEach(c=>{if(!budgets[c.id])budgets[c.id]=c.b||0;});
     const pending=gq(currentAcct);
@@ -984,14 +988,25 @@ function _renderHistorialContent(){
           <div class="historial-arrow">›</div>
         </div>
       </div>
-      <div class="historial-mes-body" style="display:none">
-        ${gastosMes.length ? buildCatSummary(catTotals)+buildCatDropdowns(gastosMes) : '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:sans-serif">Sin gastos registrados este mes</div>'}
+      <div class="historial-mes-body" style="display:none" id="mes-actual-body">
+        ${gastosMes.length ? buildCatSummary(catTotals)+buildCatDropdowns(gastosMes) : '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:sans-serif">Sin gastos este mes aún</div>'}
       </div>
     </div>`;
 
   // ── MESES ANTERIORES: carga async ──
   cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px"><span style="display:block;font-size:22px;margin-bottom:6px">📅</span>Cargando meses anteriores...</div>`;
   loadHistorialMeses();
+}
+
+function normalizarMesDisplay(mesRaw){
+  if(!mesRaw)return null;
+  const s=String(mesRaw).trim();
+  if(!s||s==='undefined'||s==='null')return null;
+  if(/^\d{4}-\d{2}/.test(s)){try{const d=new Date(s.substring(0,7)+'-01T12:00:00');if(!isNaN(d.getTime()))return MONTHS[d.getMonth()]+' '+d.getFullYear();}catch(e){}}
+  if(s.includes('GMT')||s.includes('T')){try{const d=new Date(s);if(!isNaN(d.getTime()))return MONTHS[d.getMonth()]+' '+d.getFullYear();}catch(e){}}
+  const found=MONTHS.find(m=>s.toLowerCase().startsWith(m.toLowerCase()));
+  if(found){const parts=s.trim().split(/\s+/);const year=parts.length>1?parseInt(parts[parts.length-1]):new Date().getFullYear();return found+' '+(isNaN(year)?new Date().getFullYear():year);}
+  return null;
 }
 
 async function loadHistorialMeses(){
@@ -1006,7 +1021,7 @@ async function loadHistorialMeses(){
       if(res.ok&&res.historico){
         const normalized=res.historico
           .map(h=>({...h,mesDisplay:normalizarMesDisplay(h.mes)||h.mes}))
-          .filter(h=>h.mesDisplay&&!h.mesDisplay.includes('GMT')&&h.mesDisplay!==mesActual)
+          .filter(h=>h.mesDisplay&&!h.mesDisplay.includes('GMT')&&h.mesDisplay.toLowerCase()!==mesActual.toLowerCase())
           .sort((a,b)=>{
             const ya=(a.mesDisplay||'').split(' ')[1]||'0';
             const yb=(b.mesDisplay||'').split(' ')[1]||'0';
@@ -1043,7 +1058,7 @@ async function loadHistorialMeses(){
       let mk;
       if(g.fecha&&g.fecha.length>=7){const d=new Date(g.fecha+'T12:00:00');if(!isNaN(d.getTime()))mk=MONTHS[d.getMonth()]+' '+d.getFullYear();}
       if(!mk)mk=normalizarMesDisplay(g.mes)||'Sin fecha';
-      if(mk===mesActual)return;
+      if(mk.toLowerCase()===mesActual.toLowerCase())return;
       if(!grupos[mk])grupos[mk]={mes:mk,gastos:[],total:0};
       grupos[mk].gastos.push(g);grupos[mk].total+=g.monto;
     });
@@ -1265,6 +1280,46 @@ function savePerfilSettings(){const nombre=document.getElementById('settings-nom
 function exportCSV(){abrirExportHistorial();}
 
 // ════ FIX 1: toggleCat — sin restricción, siempre editable ════
+// ── Toggle historial mes (local, sin fetch) ──
+function toggleHistorialMesLocal(card){
+  const body=card.querySelector('.historial-mes-body');
+  const arrow=card.querySelector('.historial-arrow');
+  if(!body)return;
+  const isOpen=body.style.display!=='none';
+  if(!isOpen&&body.id==='mes-actual-body'&&gastosMes.length&&body.textContent.includes('Sin gastos')){
+    const ct={};gastosMes.forEach(g=>{ct[g.categoria]=(ct[g.categoria]||0)+g.monto;});
+    body.innerHTML=buildCatSummary(ct)+buildCatDropdowns(gastosMes);
+  }
+  body.style.display=isOpen?'none':'block';
+  if(arrow)arrow.style.transform=isOpen?'rotate(0deg)':'rotate(90deg)';
+}
+
+// ── Toggle historial mes Casa (fetch lazy) ──
+async function toggleHistorialMes(card,mesNombre,gastos){
+  const body=card.querySelector('.historial-mes-body');
+  const arrow=card.querySelector('.historial-arrow');
+  if(!body)return;
+  const isOpen=body.style.display!=='none';
+  if(isOpen){body.style.display='none';if(arrow)arrow.style.transform='rotate(0deg)';return;}
+  body.style.display='block';if(arrow)arrow.style.transform='rotate(90deg)';
+  if(mesNombre&&body.textContent.includes('Cargando')){
+    try{
+      const res=await fetchGet(`action=getGastos&mes=${encodeURIComponent(mesNombre)}&userId=casa`);
+      const gs=res.ok?res.gastos.map(g=>({...g,fecha:String(g.fecha||'').split('T')[0]})):[];
+      if(!gs.length){body.innerHTML='<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">Sin gastos este mes</div>';return;}
+      const ct={};gs.forEach(g=>{ct[g.categoria]=(ct[g.categoria]||0)+g.monto;});
+      body.innerHTML=buildCatSummary(ct)+buildCatDropdowns(gs);
+    }catch(e){body.innerHTML='<div style="padding:12px;color:var(--muted);font-size:12px">Error al cargar</div>';}
+  }
+}
+
+// ── Toggle sub-dropdown de categoría ──
+function toggleCatDrop(dropId){
+  const el=document.getElementById(dropId);const arr=document.getElementById('arr-'+dropId);if(!el)return;
+  const open=el.style.display!=='none';el.style.display=open?'none':'block';
+  if(arr)arr.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+}
+
 function toggleCat(i){
   if(!userConfig)return;
   const cat=userConfig.categorias[i];
