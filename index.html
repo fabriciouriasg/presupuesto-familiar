@@ -985,9 +985,7 @@ function _renderHistorialContent(){
         </div>
       </div>
       <div class="historial-mes-body" style="display:none">
-        ${gastosMes.length
-          ? buildCatSummary(catTotals) + buildCatDropdowns(gastosMes)
-          : '<div style="padding:14px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos registrados este mes</div>'}
+        ${gastosMes.length ? buildCatSummary(catTotals)+buildCatDropdowns(gastosMes) : '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:sans-serif">Sin gastos registrados este mes</div>'}
       </div>
     </div>`;
 
