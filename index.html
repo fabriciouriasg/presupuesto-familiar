@@ -954,27 +954,45 @@ function handleHeroImage(input){
 // ════════════════════════════════════════════════════════════
 function rHistorial(){_renderHistorialContent();}
 function _renderHistorialContent(){
-  // Resumen del mes actual (por categoría + método de pago)
-  const fijos=currentAcct==='casa'?DEFAULT_FIJOS:(userConfig?.fijos||DEFAULT_FIJOS);
-  const ingreso=currentAcct==='casa'?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);
-  const extras=getIngresosExtra();const totalExtra=extras.reduce((s,i)=>s+(i.monto||0),0);
-  const ingresoTotal=ingreso+totalExtra;
-  const totalVar=gastosMes.reduce((s,g)=>s+g.monto,0);
-  const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
-  const pagoTotals={};gastosMes.forEach(g=>{const p=g.pago||'Sin especificar';pagoTotals[p]=(pagoTotals[p]||0)+g.monto;});
-  const cats=getCats();const maxAmt=Math.max(...cats.map(c=>totals[c.id]||0),1);
-  const resEl=document.getElementById('resumen-content');
-  if(resEl){
-    resEl.innerHTML=`
-      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">${getMesNombre()} — resumen</div>
-      ${totalExtra>0?`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--success)">💰 Ingresos extra: ${fmxn(totalExtra)}</div>`:''}
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-        <button onclick="openIngresoExtra()" style="background:rgba(45,122,79,0.1);border:1px solid rgba(45,122,79,0.25);border-radius:20px;padding:5px 12px;font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--success);cursor:pointer;font-weight:600">+ Ingreso extra</button>
+  const cont = document.getElementById('historial-meses-container');
+  const resEl = document.getElementById('resumen-content');
+  if(!cont || !resEl) return;
+
+  // ── MES ACTUAL: card expandible con gastos ya en memoria ──
+  const mesActual = getMesNombre();
+  const totalVar  = gastosMes.reduce((s,g)=>s+g.monto,0);
+  const catTotals = {};
+  gastosMes.forEach(g=>{ catTotals[g.categoria]=(catTotals[g.categoria]||0)+g.monto; });
+  const extras = getIngresosExtra();
+  const totalExtra = extras.reduce((s,i)=>s+(i.monto||0),0);
+
+  // Encabezado mes actual con botón ingreso extra
+  resEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">${mesActual}</div>
+      <button onclick="openIngresoExtra()" style="background:rgba(45,122,79,0.1);border:1px solid rgba(45,122,79,0.25);border-radius:20px;padding:4px 10px;font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--success);cursor:pointer;font-weight:600">+ Ingreso extra</button>
+    </div>
+    ${totalExtra>0?`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:10px;padding:7px 12px;margin-bottom:8px;font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--success)">💰 Ingresos extra: ${fmxn(totalExtra)}</div>`:''}
+    <div class="historial-mes-card">
+      <div class="historial-mes-header" onclick="toggleHistorialMesLocal(this.parentElement)">
+        <div>
+          <div style="font-size:14px;color:var(--text);font-weight:600">${mesActual} <span style="font-size:10px;background:rgba(45,122,79,0.1);color:#2d7a4f;border-radius:20px;padding:2px 7px;font-family:'Helvetica Neue',sans-serif">En curso</span></div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${gastosMes.length} registros</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:15px;color:var(--acc);font-weight:700;font-family:'Helvetica Neue',sans-serif">${fmxn(totalVar)}</div>
+          <div class="historial-arrow">›</div>
+        </div>
       </div>
-      ${cats.map(c=>{const spent=totals[c.id]||0;const lim=budgets[c.id]||c.b||0;const pct=lim>0?Math.min((spent/lim)*100,100):Math.min((spent/maxAmt)*100,100);const fc=lim>0&&spent>lim?'over':lim>0&&spent>lim*0.8?'warn':'';return `<div class="res-cat-row"><span class="res-cat-emoji">${c.e}</span><span class="res-cat-name">${c.l}</span><div class="res-cat-bar"><div class="res-cat-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div><span class="res-cat-amt">${fmxn(spent)}</span></div>`;}).join('')}
-      <div class="pago-card" style="margin-top:10px">${Object.entries(pagoTotals).length?Object.entries(pagoTotals).sort((a,b)=>b[1]-a[1]).map(([p,amt])=>`<div class="pago-row"><span class="pago-label">${p}</span><span class="pago-val">${fmxn(amt)}</span></div>`).join(''):`<div style="text-align:center;padding:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin datos de pago aún</div>`}</div>`;
-  }
-  // Historial meses anteriores
+      <div class="historial-mes-body" style="display:none">
+        ${gastosMes.length
+          ? buildCatSummary(catTotals) + buildCatDropdowns(gastosMes)
+          : '<div style="padding:14px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos registrados este mes</div>'}
+      </div>
+    </div>`;
+
+  // ── MESES ANTERIORES: carga async ──
+  cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px"><span style="display:block;font-size:22px;margin-bottom:6px">📅</span>Cargando meses anteriores...</div>`;
   loadHistorialMeses();
 }
 
