@@ -596,7 +596,7 @@ const THEMES = [
 // STATE
 // ════════════════════════════════════════════════════════════
 let currentUser=null,currentAcct=null,userConfig=null,gastosMes=[],budgets={};
-let isOnline=navigator.onLine,activeTab='inicio',obStep=1,obData={};
+let isOnline=navigator.onLine,activeTab='hoy',obStep=1,obData={};
 let editFijoIdx=null,editCatIdx=null,preselCat=null;
 
 const sk=k=>`pb_${k}`;
@@ -853,15 +853,24 @@ function switchTab(t){
   document.querySelectorAll('.nav-bottom-item').forEach(el=>el.classList.remove('active'));
   const map={hoy:'nbi-hoy',historial:'nbi-historial',metas:'nbi-metas'};
   const nb=document.getElementById(map[t]);if(nb)nb.classList.add('active');
-  renderAll();
+  // Renderizar solo el tab activo al cambiar manualmente (más rápido)
+  if(t==='hoy') _renderHoyContent();
+  else if(t==='historial') _renderHistorialContent();
+  else if(t==='metas') _renderMetasContent();
 }
-function renderAll(){rHoy();rHistorial();rMetas();}
+function renderAll(){
+  // Cada función renderiza su contenido siempre (sin guard de tab activo)
+  // Para que los datos estén listos cuando el usuario cambia de tab
+  _renderHoyContent();
+  _renderHistorialContent();
+  _renderMetasContent();
+}
 
 // ════════════════════════════════════════════════════════════
 // HOY — Tab principal (hero-mes + categorías + recientes)
 // ════════════════════════════════════════════════════════════
-function rHoy(){
-  if(activeTab!=='hoy') return;
+function rHoy(){_renderHoyContent();}
+function _renderHoyContent(){
   // Hero imagen
   const email=currentUser?.email||'default';
   const img=gls('hero_img_'+email);
@@ -943,8 +952,8 @@ function handleHeroImage(input){
 // ════════════════════════════════════════════════════════════
 // HISTORIAL — unifica mes actual (resumen) + meses anteriores
 // ════════════════════════════════════════════════════════════
-function rHistorial(){
-  if(activeTab!=='historial')return;
+function rHistorial(){_renderHistorialContent();}
+function _renderHistorialContent(){
   // Resumen del mes actual (por categoría + método de pago)
   const fijos=currentAcct==='casa'?DEFAULT_FIJOS:(userConfig?.fijos||DEFAULT_FIJOS);
   const ingreso=currentAcct==='casa'?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);
@@ -969,11 +978,95 @@ function rHistorial(){
   loadHistorialMeses();
 }
 
+async function loadHistorialMeses(){
+  const cont=document.getElementById('historial-meses-container');
+  if(!cont)return;
+  cont.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px"><span style="display:block;font-size:22px;margin-bottom:6px">📅</span>Cargando meses anteriores...</div>`;
+  const mesActual=getMesNombre();
+  const isCasa=currentAcct==='casa';
+  try{
+    if(isCasa){
+      const res=await fetchGet(`action=getHistorico&userId=casa`);
+      if(res.ok&&res.historico){
+        const normalized=res.historico
+          .map(h=>({...h,mesDisplay:normalizarMesDisplay(h.mes)||h.mes}))
+          .filter(h=>h.mesDisplay&&!h.mesDisplay.includes('GMT')&&h.mesDisplay!==mesActual)
+          .sort((a,b)=>{
+            const ya=(a.mesDisplay||'').split(' ')[1]||'0';
+            const yb=(b.mesDisplay||'').split(' ')[1]||'0';
+            const ma=MONTHS.indexOf((a.mesDisplay||'').split(' ')[0]);
+            const mb=MONTHS.indexOf((b.mesDisplay||'').split(' ')[0]);
+            if(ya!==yb)return parseInt(yb)-parseInt(ya);return mb-ma;
+          });
+        if(!normalized.length){cont.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin meses anteriores aún</div>`;return;}
+        cont.innerHTML=normalized.map(h=>`
+          <div class="historial-mes-card">
+            <div class="historial-mes-header" onclick="toggleHistorialMes(this.parentElement,'${h.mesDisplay}',null)">
+              <div>
+                <div style="font-size:14px;color:var(--text);font-weight:600">${h.mesDisplay}</div>
+                <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${h.count} registros</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="font-size:15px;color:var(--acc);font-weight:700;font-family:'Helvetica Neue',sans-serif">${fmxn(h.total)}</div>
+                <div class="historial-arrow">›</div>
+              </div>
+            </div>
+            <div class="historial-mes-body" style="display:none">
+              <div style="padding:14px;text-align:center;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">
+                <span style="font-size:18px;display:block;margin-bottom:6px">⏳</span>Cargando ${h.mesDisplay}...
+              </div>
+            </div>
+          </div>`).join('');
+        return;
+      }
+    }
+    // Personal — leer todos del Sheet y agrupar por mes (excluyendo mes actual)
+    const allGastos=await getAllGastosPersonal(currentAcct);
+    const grupos={};
+    allGastos.forEach(g=>{
+      let mk;
+      if(g.fecha&&g.fecha.length>=7){const d=new Date(g.fecha+'T12:00:00');if(!isNaN(d.getTime()))mk=MONTHS[d.getMonth()]+' '+d.getFullYear();}
+      if(!mk)mk=normalizarMesDisplay(g.mes)||'Sin fecha';
+      if(mk===mesActual)return;
+      if(!grupos[mk])grupos[mk]={mes:mk,gastos:[],total:0};
+      grupos[mk].gastos.push(g);grupos[mk].total+=g.monto;
+    });
+    const sorted=Object.values(grupos).sort((a,b)=>{
+      const[,ya]=a.mes.split(' ');const[,yb]=b.mes.split(' ');
+      const ma=MONTHS.indexOf(a.mes.split(' ')[0]);
+      const mb=MONTHS.indexOf(b.mes.split(' ')[0]);
+      if(ya!==yb)return parseInt(yb||0)-parseInt(ya||0);return mb-ma;
+    });
+    if(!sorted.length){cont.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">Sin meses anteriores aún</div>`;return;}
+    cont.innerHTML=sorted.map(g=>{
+      const catTotals={};g.gastos.forEach(e=>{catTotals[e.categoria]=(catTotals[e.categoria]||0)+e.monto;});
+      return `<div class="historial-mes-card">
+        <div class="historial-mes-header" onclick="toggleHistorialMesLocal(this.parentElement)">
+          <div>
+            <div style="font-size:14px;color:var(--text);font-weight:600">${g.mes}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${g.gastos.length} registros</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:15px;color:var(--acc);font-weight:700;font-family:'Helvetica Neue',sans-serif">${fmxn(g.total)}</div>
+            <div class="historial-arrow">›</div>
+          </div>
+        </div>
+        <div class="historial-mes-body" style="display:none">
+          ${buildCatSummary(catTotals)}
+          ${buildCatDropdowns(g.gastos)}
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    if(cont)cont.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px">No se pudo cargar el historial</div>`;
+  }
+}
 
 // ════════════════════════════════════════════════════════════
 // METAS
 // ════════════════════════════════════════════════════════════
-function rMetas(){
+function rMetas(){_renderMetasContent();}
+function _renderMetasContent(){
   const metas=gls(`pb_metas_${currentAcct}`)||[];const activas=metas.filter(m=>m.activo!==false);
   const el=document.getElementById('metas-content');
   el.innerHTML=`<div class="metas-type-tabs"><div class="mtype-tab active" onclick="filterMetas('todas',this)">Todas</div><div class="mtype-tab" onclick="filterMetas('evento',this)">🎯 Eventos</div><div class="mtype-tab" onclick="filterMetas('reto',this)">💪 Retos</div><div class="mtype-tab" onclick="filterMetas('ahorro',this)">💰 Ahorro</div></div>
@@ -1023,7 +1116,7 @@ function buildCatGridModal(){document.getElementById('cat-grid-modal').innerHTML
 function buildPagoGrid(){const pagos=getPagos();document.getElementById('pago-grid').innerHTML=pagos.map(p=>`<div class="pago-chip" data-pago="${p}" onclick="selPago(this)">${p}</div>`).join('');}
 function selCat(el){document.querySelectorAll('.cat-chip-m').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');}
 function selPago(el){document.querySelectorAll('.pago-chip').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');}
-function openGastoModal(catId){if(activeTab==='inicio'&&catId){openDrawer(catId);return;}preselCat=catId;document.getElementById('modal-gasto').classList.add('open');document.getElementById('modal-gasto-title').textContent='Nuevo gasto';['inp-amount','inp-desc','inp-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('inp-fecha').value=today();document.querySelectorAll('.cat-chip-m').forEach(c=>c.classList.remove('selected'));document.querySelectorAll('.pago-chip').forEach(c=>c.classList.remove('selected'));if(catId){const chip=document.querySelector(`.cat-chip-m[data-cat="${catId}"]`);if(chip)chip.classList.add('selected');}const btn=document.getElementById('btn-submit-gasto');btn.disabled=false;btn.textContent='Registrar gasto';setTimeout(()=>document.getElementById('inp-amount').focus(),300);}
+function openGastoModal(catId){if(activeTab==='hoy'&&catId){openDrawer(catId);return;}preselCat=catId;document.getElementById('modal-gasto').classList.add('open');document.getElementById('modal-gasto-title').textContent='Nuevo gasto';['inp-amount','inp-desc','inp-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('inp-fecha').value=today();document.querySelectorAll('.cat-chip-m').forEach(c=>c.classList.remove('selected'));document.querySelectorAll('.pago-chip').forEach(c=>c.classList.remove('selected'));if(catId){const chip=document.querySelector(`.cat-chip-m[data-cat="${catId}"]`);if(chip)chip.classList.add('selected');}const btn=document.getElementById('btn-submit-gasto');btn.disabled=false;btn.textContent='Registrar gasto';setTimeout(()=>document.getElementById('inp-amount').focus(),300);}
 function openDrawer(catId){
   preselCat=catId;const c=getCat(catId);const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
   const spent=totals[catId]||0;const lim=budgets[catId]||c.b||0;const bal=lim-spent;
