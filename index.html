@@ -806,8 +806,17 @@ function rResumen(){
 // HISTORIAL — helpers compartidos
 // ════════════════════════════════════════════════════════════
 function normalizarMesDisplay(mesRaw){
-  if(!mesRaw)return null;const s=String(mesRaw).trim();
-  if(s.includes('GMT')||(s.includes('2026')&&s.length>12)){try{const d=new Date(s);if(!isNaN(d.getTime()))return MONTHS[d.getMonth()]+' '+d.getFullYear();}catch(e){}}
+  if(!mesRaw)return null;
+  const s=String(mesRaw).trim();
+  // Formato ISO fecha: YYYY-MM-DD o YYYY-MM-DD... → primer día del mes
+  if(/^\d{4}-\d{2}/.test(s)){
+    try{const d=new Date(s.substring(0,7)+'-01T12:00:00');if(!isNaN(d.getTime()))return MONTHS[d.getMonth()]+' '+d.getFullYear();}catch(e){}
+  }
+  // Formato con GMT o fecha larga
+  if(s.includes('GMT')||s.includes('T')){
+    try{const d=new Date(s);if(!isNaN(d.getTime()))return MONTHS[d.getMonth()]+' '+d.getFullYear();}catch(e){}
+  }
+  // Ya es "Mayo 2026" o "Mayo"
   const found=MONTHS.find(m=>s.toLowerCase().startsWith(m.toLowerCase()));
   if(found){const parts=s.split(' ');return parts.length===1?found+' '+new Date().getFullYear():found+' '+parts[parts.length-1];}
   return s;
@@ -863,18 +872,78 @@ function buildCatDropdowns(gastos){
           <span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s">›</span>
         </div>
         <div id="${dropId}" style="display:none;background:var(--card)">
-          ${gs.sort((a,b)=>b.fecha>a.fecha?1:-1).map(e=>`
-            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px 9px 16px;border-top:1px solid var(--border)">
+          ${gs.sort((a,b)=>b.fecha>a.fecha?1:-1).map(e=>{
+            const eJson=JSON.stringify({rowIndex:e.rowIndex,fecha:e.fecha,nota:e.nota||'',monto:e.monto,pago:e.pago||'',categoria:e.categoria}).replace(/'/g,"&#39;");
+            return `<div style="display:flex;align-items:center;gap:8px;padding:9px 12px 9px 16px;border-top:1px solid var(--border)">
               <div style="flex:1;min-width:0">
                 <div style="font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.nota||e.categoria}</div>
                 <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:1px">${e.fecha}${e.pago?' · '+e.pago:''}</div>
               </div>
               <div style="font-size:13px;font-weight:700;color:var(--acc);font-family:'Helvetica Neue',sans-serif;flex-shrink:0">${fmxn(e.monto)}</div>
-            </div>`).join('')}
+              <button onclick="abrirEditGastoHistorial('${btoa(eJson)}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0">✏️</button>
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
     }).join('')}
   </div>`;
+}
+
+// ── Modal de edición de gasto del historial ──────────────────
+function abrirEditGastoHistorial(encoded){
+  let gasto;
+  try{ gasto=JSON.parse(atob(encoded)); }catch(e){ showToast('Error al abrir editor'); return; }
+  // Reutilizamos modal-gasto como editor
+  const isCasa=currentAcct==='casa';
+  document.getElementById('modal-gasto-title').textContent='✏️ Editar gasto';
+  document.getElementById('inp-amount').value=gasto.monto||'';
+  document.getElementById('inp-desc').value=gasto.nota||'';
+  document.getElementById('inp-note').value='';
+  document.getElementById('inp-fecha').value=gasto.fecha||today();
+  buildCatGridModal();buildPagoGrid();
+  // Pre-seleccionar categoría
+  setTimeout(()=>{
+    const catChip=document.querySelector(`.cat-chip-m[data-cat="${gasto.categoria}"]`);
+    if(catChip){document.querySelectorAll('.cat-chip-m').forEach(c=>c.classList.remove('selected'));catChip.classList.add('selected');}
+    const pagoChip=document.querySelector(`.pago-chip[data-pago="${gasto.pago}"]`);
+    if(pagoChip){document.querySelectorAll('.pago-chip').forEach(c=>c.classList.remove('selected'));pagoChip.classList.add('selected');}
+  },50);
+  document.getElementById('modal-gasto').classList.add('open');
+  // Cambiar comportamiento del botón submit a "guardar edición"
+  const btn=document.getElementById('btn-submit-gasto');
+  btn.textContent='Guardar cambios';btn.disabled=false;
+  btn.onclick=()=>guardarEdicionGastoHistorial(gasto);
+}
+
+async function guardarEdicionGastoHistorial(gastoOriginal){
+  const amount=parseFloat(document.getElementById('inp-amount').value);
+  const desc=document.getElementById('inp-desc').value.trim();
+  const nota=document.getElementById('inp-note').value.trim();
+  const fecha=document.getElementById('inp-fecha').value;
+  const catEl=document.querySelector('.cat-chip-m.selected');
+  const pagoEl=document.querySelector('.pago-chip.selected');
+  if(!amount||amount<=0){showToast('Ingresa un monto válido');return;}
+  if(!desc){showToast('Agrega una descripción');return;}
+  if(!catEl){showToast('Selecciona una categoría');return;}
+  const notaFinal=desc+(nota?' · '+nota:'');
+  const pago=pagoEl?.dataset.pago||gastoOriginal.pago||'';
+  const btn=document.getElementById('btn-submit-gasto');
+  btn.disabled=true;btn.textContent='Guardando...';
+  try{
+    if(gastoOriginal.rowIndex&&isOnline){
+      const res=await postAPI({action:'editarGasto',token:TOKEN,rowIndex:gastoOriginal.rowIndex,fecha,categoria:catEl.dataset.cat,monto:amount,nota:notaFinal,pago,userId:currentAcct==='casa'?'casa':currentAcct});
+      if(res.ok){showToast('Gasto actualizado ✓');}
+      else{showToast('Error al guardar — verifica conexión');}
+    }else{
+      showToast('Cambio guardado localmente (sin rowIndex)');
+    }
+  }catch(e){showToast('Sin conexión — no se pudo guardar');}
+  document.getElementById('modal-gasto').classList.remove('open');
+  // Restaurar onclick original del botón
+  document.getElementById('btn-submit-gasto').onclick=submitGasto;
+  // Recargar datos para reflejar cambio
+  if(isOnline)await loadData();
+  else rResumen();
 }
 
 // Toggle sub-dropdown de categoría dentro del historial
