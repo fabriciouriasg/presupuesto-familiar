@@ -1239,12 +1239,31 @@ function cargarSubcatsDrawer(catId){
   if(!sorted.length){wrap.style.display='none';return;}
   wrap.style.display='block';
   list.innerHTML=sorted.map(([nota])=>`<div class="drawer-sc-chip" onclick="selectDrawerSubcat(this,'${nota.replace(/'/g,"\'")}')">${nota}</div>`).join('');
-  // Cargar historial completo async (solo personal, una vez)
-  if(!_subcatsCache[catId]&&currentAcct!=='casa'&&window.gAccessToken){
-    getAllGastosPersonal(currentAcct).then(all=>{
-      _subcatsCache[catId]=all.filter(g=>g.categoria===catId);
-      if(preselCat===catId)cargarSubcatsDrawer(catId);
-    }).catch(()=>{});
+  // Cargar historial completo async para enriquecer subcats
+  if(!_subcatsCache[catId]){
+    if(currentAcct!=='casa'&&window.gAccessToken){
+      getAllGastosPersonal(currentAcct).then(all=>{
+        _subcatsCache[catId]=all.filter(g=>g.categoria===catId);
+        if(preselCat===catId)cargarSubcatsDrawer(catId);
+      }).catch(()=>{});
+    } else if(currentAcct==='casa'&&isOnline){
+      // Casa: pedir historial de meses anteriores para enriquecer
+      fetchGet('action=getHistorico&userId=casa').then(res=>{
+        if(res.ok&&res.historico){
+          // Obtener gastos de meses anteriores para la categoría
+          const meses=res.historico.map(h=>h.mes).filter(Boolean);
+          const promises=meses.slice(0,3).map(m=>
+            fetchGet('action=getGastos&mes='+encodeURIComponent(m)+'&userId=casa')
+              .then(r=>r.ok?r.gastos:[]).catch(()=>[])
+          );
+          Promise.all(promises).then(results=>{
+            const todos=results.flat().filter(g=>g.categoria===catId);
+            _subcatsCache[catId]=todos;
+            if(preselCat===catId)cargarSubcatsDrawer(catId);
+          });
+        }
+      }).catch(()=>{});
+    }
   }
 }
 
@@ -1332,7 +1351,15 @@ async function flushQueue(acct){
 function openSettings(){showScreen('settings');renderSettings();}
 function closeSettings(){showScreen('app');}
 function renderSettings(){
-  const isCasa=currentAcct==='casa';const cfg=userConfig||{};const tema=cfg.tema||'mayne';const nombre=cfg.nombre||currentUser?.name||'';const photo=cfg.photo||currentUser?.photo||'';
+  const isCasa=currentAcct==='casa';
+  const cfg=userConfig||{};
+  const tema=cfg.tema||'mayne';
+  const nombre=cfg.nombre||currentUser?.name||'';
+  const photo=cfg.photo||currentUser?.photo||'';
+  // Asegurar que categorías y fijos tengan datos aunque userConfig esté parcial
+  if(!cfg.categorias||!cfg.categorias.length) cfg.categorias=JSON.parse(JSON.stringify(DEFAULT_CATS));
+  if(!cfg.fijos||!cfg.fijos.length) cfg.fijos=JSON.parse(JSON.stringify(DEFAULT_FIJOS));
+  if(!cfg.pagos||!cfg.pagos.length) cfg.pagos=[...DEFAULT_PAGOS];
   document.getElementById('settings-content').innerHTML=`<div style="padding-bottom:48px">
     <div class="settings-section"><div class="settings-title">Perfil</div>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
