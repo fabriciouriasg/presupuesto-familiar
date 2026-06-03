@@ -253,6 +253,10 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .add-row{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px dashed var(--border);border-radius:10px;cursor:pointer;margin-top:4px;font-family:'Helvetica Neue',sans-serif;font-size:13px;color:var(--muted)}
 .add-row-icon{width:28px;height:28px;border-radius:7px;background:rgba(183,152,88,0.12);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--s)}
+#drawer-subcats-list::-webkit-scrollbar{display:none}
+.drawer-sc-chip{flex-shrink:0;border:1.5px solid rgba(84,41,22,0.14);border-radius:20px;padding:7px 12px;font-size:12px;color:var(--p);background:var(--surface);cursor:pointer;white-space:nowrap;font-family:'Helvetica Neue',sans-serif;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.drawer-sc-chip:active{background:rgba(183,152,88,0.15);border-color:var(--s)}
+.drawer-sc-chip.sel{background:rgba(183,152,88,0.18);border-color:var(--s);font-weight:600}
 /* ── HISTORIAL CATEGORÍA DROP ── */
 .hcat-drop-header{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--surface);transition:background 0.15s}
 .hcat-drop-header:active{background:rgba(183,152,88,0.1)}
@@ -452,7 +456,12 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <button onclick="closeDrawer()" style="margin-left:auto;background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer">×</button>
     </div>
     <input type="number" id="drawer-amount" class="form-input amount-input" placeholder="0.00" inputmode="decimal" style="margin-bottom:12px">
-    <input type="text" id="drawer-desc" class="form-input" placeholder="¿En qué gastaste?" style="margin-bottom:10px;font-size:15px">
+    <input type="text" id="drawer-desc" class="form-input" placeholder="¿En qué gastaste?" oninput="filterDrawerSubcats(this.value)" style="margin-bottom:8px;font-size:15px">
+    <!-- SUBCATS -->
+    <div id="drawer-subcats-wrap" style="display:none;margin-bottom:10px">
+      <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:7px;font-weight:500">Frecuentes</div>
+      <div id="drawer-subcats-list" style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px;-webkit-overflow-scrolling:touch"></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
       <div>
         <div class="form-label" style="margin-bottom:5px">Método de pago</div>
@@ -1195,13 +1204,70 @@ function openGastoModal(catId){if(activeTab==='hoy'&&catId){openDrawer(catId);re
 function openDrawer(catId){
   preselCat=catId;const c=getCat(catId);const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
   const spent=totals[catId]||0;const lim=budgets[catId]||c.b||0;const bal=lim-spent;
-  document.getElementById('drawer-cat-icon').textContent=c.e;document.getElementById('drawer-cat-name').textContent=c.l;document.getElementById('drawer-cat-balance').textContent=lim>0?`${fmxn(spent)} gastado · ${fmxn(Math.abs(bal))} ${bal>=0?'disponible':'excedido'}`:`${fmxn(spent)} gastado`;
-  document.getElementById('drawer-amount').value='';document.getElementById('drawer-desc').value='';document.getElementById('drawer-note').value='';document.getElementById('drawer-fecha').value=today();
-  const pagos=getPagos();document.getElementById('drawer-pago-grid').innerHTML=pagos.map(p=>`<div class="pago-chip" data-pago="${p}" onclick="selDrawerPago(this)" style="font-size:10px;padding:7px 4px">${p}</div>`).join('');
+  document.getElementById('drawer-cat-icon').textContent=c.e;document.getElementById('drawer-cat-name').textContent=c.l;
+  document.getElementById('drawer-cat-balance').textContent=lim>0?`${fmxn(spent)} gastado · ${fmxn(Math.abs(bal))} ${bal>=0?'disponible':'excedido'}`:`${fmxn(spent)} gastado`;
+  document.getElementById('drawer-amount').value='';document.getElementById('drawer-desc').value='';
+  document.getElementById('drawer-note').value='';document.getElementById('drawer-fecha').value=today();
+  const pagos=getPagos();
+  document.getElementById('drawer-pago-grid').innerHTML=pagos.map(p=>`<div class="pago-chip" data-pago="${p}" onclick="selDrawerPago(this)" style="font-size:10px;padding:7px 4px">${p}</div>`).join('');
   document.getElementById('drawer-submit').disabled=false;document.getElementById('drawer-submit').textContent='Registrar gasto';
+  cargarSubcatsDrawer(catId);
   document.getElementById('inline-drawer').style.display='block';document.getElementById('drawer-overlay').style.display='block';
   setTimeout(()=>document.getElementById('drawer-amount').focus(),300);
 }
+
+let _subcatsCache={};
+
+function cargarSubcatsDrawer(catId){
+  const wrap=document.getElementById('drawer-subcats-wrap');
+  const list=document.getElementById('drawer-subcats-list');
+  if(!wrap||!list)return;
+  const freq={};
+  // Mes actual en memoria
+  gastosMes.forEach(g=>{
+    if(g.categoria!==catId||!g.nota)return;
+    const nota=g.nota.split('·')[0].trim();
+    if(nota)freq[nota]=(freq[nota]||0)+1;
+  });
+  // Caché de historial si ya lo cargamos
+  (_subcatsCache[catId]||[]).forEach(g=>{
+    if(!g.nota)return;
+    const nota=g.nota.split('·')[0].trim();
+    if(nota)freq[nota]=(freq[nota]||0)+1;
+  });
+  const sorted=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(!sorted.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  list.innerHTML=sorted.map(([nota])=>`<div class="drawer-sc-chip" onclick="selectDrawerSubcat(this,'${nota.replace(/'/g,"\'")}')">${nota}</div>`).join('');
+  // Cargar historial completo async (solo personal, una vez)
+  if(!_subcatsCache[catId]&&currentAcct!=='casa'&&window.gAccessToken){
+    getAllGastosPersonal(currentAcct).then(all=>{
+      _subcatsCache[catId]=all.filter(g=>g.categoria===catId);
+      if(preselCat===catId)cargarSubcatsDrawer(catId);
+    }).catch(()=>{});
+  }
+}
+
+function filterDrawerSubcats(q){
+  const chips=document.querySelectorAll('.drawer-sc-chip');
+  if(!chips.length)return;
+  let any=false;
+  chips.forEach(chip=>{
+    const show=!q||chip.textContent.trim().toLowerCase().includes(q.toLowerCase());
+    chip.style.display=show?'flex':'none';
+    if(show)any=true;
+  });
+  const wrap=document.getElementById('drawer-subcats-wrap');
+  if(wrap)wrap.style.display=any?'block':'none';
+}
+
+function selectDrawerSubcat(el,nota){
+  document.getElementById('drawer-desc').value=nota;
+  document.querySelectorAll('.drawer-sc-chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('drawer-amount').focus();
+}
+
 function closeDrawer(){document.getElementById('inline-drawer').style.display='none';document.getElementById('drawer-overlay').style.display='none';}
 function selDrawerPago(el){document.querySelectorAll('#drawer-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');}
 async function submitDrawer(){
@@ -1301,8 +1367,26 @@ function renderSettings(){
       <div class="chip-grid">${(cfg.fijos||[]).map((f,i)=>`<div class="chip-big active" onclick="openFijoModal(${i})"><span class="ce">${f.e}</span><span class="cn">${f.l}</span><span class="ca">${fmxn(f.monto)}</span></div>`).join('')}<div class="chip-big chip-add" onclick="openFijoModal()"><span class="ce">＋</span><span class="cn">Agregar</span></div></div>
     </div>
     <div class="settings-section"><div class="settings-title">Categorías</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Toca para activar/desactivar · Mantén presionado para editar · Elimina en cualquier momento desde el editor</div>
-      <div class="chip-grid">${(cfg.categorias||[]).map((c,i)=>`<div class="chip-big${c.active!==false?' active':''}" onclick="toggleCat(${i})" oncontextmenu="event.preventDefault();openCatModal(${i})"><span class="ce">${c.e}</span><span class="cn">${c.l}</span><span class="ca">${c.b>0?fmxn(c.b):'—'}</span>${c.active!==false?'':'<span style="position:absolute;top:3px;left:5px;font-size:9px;color:var(--muted)">off</span>'}</div>`).join('')}<div class="chip-big chip-add" onclick="openCatModal()"><span class="ce">＋</span><span class="cn">Nueva</span></div></div>
+      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Toca ✏️ Editar para cambiar emoji, nombre o límite · ⏸ Off para desactivar</div>
+      <div class="chip-grid">${(cfg.categorias||[]).map((c,i)=>`
+        <div class="chip-big${c.active!==false?' active':''}" style="padding-bottom:28px">
+          <span class="ce">${c.e}</span>
+          <span class="cn">${c.l}</span>
+          <span class="ca">${c.b>0?fmxn(c.b):'sin límite'}</span>
+          ${c.active===false?'<span style="position:absolute;top:3px;left:5px;font-size:9px;color:var(--muted)">off</span>':''}
+          <div style="position:absolute;bottom:0;left:0;right:0;display:flex;border-top:1px solid rgba(84,41,22,0.08)">
+            <button onclick="event.stopPropagation();toggleCat(${i})"
+              style="flex:1;background:none;border:none;border-right:1px solid rgba(84,41,22,0.08);padding:5px 0;font-size:10px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);cursor:pointer">
+              ${c.active!==false?'⏸ Off':'▶ On'}
+            </button>
+            <button onclick="event.stopPropagation();openCatModal(${i})"
+              style="flex:1;background:none;border:none;padding:5px 0;font-size:10px;font-family:'Helvetica Neue',sans-serif;color:var(--p);cursor:pointer;font-weight:600">
+              ✏️ Editar
+            </button>
+          </div>
+        </div>`).join('')}
+        <div class="chip-big chip-add" onclick="openCatModal()"><span class="ce">＋</span><span class="cn">Nueva</span></div>
+      </div>
     </div>
     <div class="settings-section"><div class="settings-title">Datos</div>
       <button class="btn-secondary" onclick="exportCSV()" style="margin-bottom:10px">📥 Exportar gastos del mes (CSV)</button>
