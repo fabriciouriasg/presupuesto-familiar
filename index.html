@@ -419,7 +419,8 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 
 <!-- ══ APP ══ -->
 <div id="screen-app" class="screen">
-  <div class="app-header">
+  <div class="app-header" style="position:relative">
+    <span id="app-rev" style="position:absolute;top:2px;right:7px;font-size:8px;color:rgba(254,250,240,0.32);font-family:'Helvetica Neue',sans-serif;letter-spacing:.5px;pointer-events:none"></span>
     <div class="header-top">
       <button class="back-btn" onclick="goHome()">‹</button>
       <div class="header-av" id="header-av">🐷</div>
@@ -466,6 +467,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
     <div class="pending-banner" id="pending-banner"><span>🟡</span><span id="pending-text"></span></div>
     <div id="resumen-content" style="margin-bottom:14px"></div>
     <div id="historial-meses-container"></div>
+    <div id="comparativa-container"></div>
   </div>
   <!-- TAB METAS -->
   <div id="tab-metas" class="tab-panel" style="padding:14px 14px 72px">
@@ -646,6 +648,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
+const APP_REV      = 'Rev 1';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1145,6 +1148,8 @@ function _renderHistorialContent(){
     </div>`;
 
   // ── MESES ANTERIORES: carga async — solo si no hay datos ya ──
+  // Refrescar gráfica con el dato fresco del mes actual
+  renderComparativaMeses();
   const yaConDatos = cont.querySelector('.historial-mes-card');
   if(!yaConDatos){
     cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:13px"><span style="display:block;font-size:22px;margin-bottom:6px">📅</span>Cargando meses anteriores...</div>`;
@@ -1171,8 +1176,13 @@ async function loadHistorialMeses(){
   const isCasa=esHogar(currentAcct);
   try{
     if(isCasa){
-      const res=await fetchGet(`action=getHistorico&userId=casa`);
+      const res=await fetchGet(`action=getHistorico&userId=${currentAcct}`);
       if(res.ok&&res.historico){
+        // Guardar histórico completo (con mes actual) para la gráfica comparativa
+        _historicoMeses=res.historico
+          .map(h=>({mes:normalizarMesDisplay(h.mes)||h.mes,total:h.total,count:h.count}))
+          .filter(h=>h.mes&&!h.mes.includes('GMT'));
+        renderComparativaMeses();
         const normalized=res.historico
           .map(h=>({...h,mesDisplay:normalizarMesDisplay(h.mes)||h.mes}))
           .filter(h=>h.mesDisplay&&!h.mesDisplay.includes('GMT')&&h.mesDisplay.toLowerCase()!==mesActual.toLowerCase())
@@ -1205,8 +1215,20 @@ async function loadHistorialMeses(){
         return;
       }
     }
-    // Personal — leer todos del Sheet y agrupar por mes (excluyendo mes actual)
+    // Personal — leer todos del Sheet y agrupar por mes
     const allGastos=await getAllGastosPersonal(currentAcct);
+    // Histórico completo (incluye mes actual) para la gráfica comparativa
+    const todosMeses={};
+    allGastos.forEach(g=>{
+      let mk;
+      if(g.fecha&&g.fecha.length>=7){const d=new Date(g.fecha+'T12:00:00');if(!isNaN(d.getTime()))mk=MONTHS[d.getMonth()]+' '+d.getFullYear();}
+      if(!mk)mk=normalizarMesDisplay(g.mes);
+      if(!mk)return;
+      if(!todosMeses[mk])todosMeses[mk]={mes:mk,total:0,count:0};
+      todosMeses[mk].total+=g.monto;todosMeses[mk].count++;
+    });
+    _historicoMeses=Object.values(todosMeses);
+    renderComparativaMeses();
     const grupos={};
     allGastos.forEach(g=>{
       let mk;
@@ -1265,5 +1287,4 @@ function _renderMetasContent(){
 }
 function renderMetasList(metas){const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});return metas.map(m=>{if(m.tipo==='evento')return renderMetaEvento(m);if(m.tipo==='reto')return renderMetaReto(m,totals);if(m.tipo==='ahorro')return renderMetaAhorro(m);return '';}).join('');}
 function renderMetaEvento(m){const ahorrado=m.ahorrado||0;const pct=m.meta>0?Math.min((ahorrado/m.meta)*100,100):0;const hoy=new Date();const fin=new Date(m.fechaFin+'T12:00:00');const mesesRestantes=Math.max(0,(fin.getFullYear()-hoy.getFullYear())*12+(fin.getMonth()-hoy.getMonth()));const faltante=Math.max(0,m.meta-ahorrado);const porMes=mesesRestantes>0?Math.ceil(faltante/mesesRestantes):faltante;const badge=pct>=100?'badge-ok':mesesRestantes<=1?'badge-over':'badge-ok';const badgeTxt=pct>=100?'Completada':mesesRestantes+' meses';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${m.nombre}</div><div class="mc-sub">Meta: ${fmxn(m.meta)} · ${m.fechaFin}</div></div><span class="mc-badge ${badge}">${badgeTxt}</span></div><div class="mc-prog"><div class="mc-prog-fill green" style="width:${pct.toFixed(1)}%"></div></div><div class="mc-nums"><span>${fmxn(ahorrado)} ahorrado</span><span>${fmxn(m.meta)}</span></div>${faltante>0&&mesesRestantes>0?`<div class="mc-detail">Necesitas <strong>${fmxn(porMes)}/mes</strong> para llegar a tiempo</div>`:''}<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-secondary" style="flex:1;padding:9px;font-size:12px" onclick="openAbono('${m.id}')">💰 Abonar</button><button style="flex:1;padding:9px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar</button></div></div>`;}
-function renderMetaReto(m,totals){const gastado=totals[m.categoria]||0;const pct=m.meta>0?Math.min((gastado/m.meta)*100,100):0;const logrado=gastado<=m.meta;const fc=pct>=100?'over':pct>=80?'warn':'';const badge=logrado?'badge-ok':'badge-over';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${m.nombre}</div><div class="mc-sub">Límite reto: ${fmxn(m.meta)} este mes</div></div><span class="mc-badge ${badge}">${logrado?'✓ OK':'⚠️ Excedido'}</span></div><div class="mc-prog"><div class="mc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div><div class="mc-nums"><span>${fmxn(gastado)} gastado</span><span>/ ${fmxn(m.meta)}</span></div>${!logrado?`<div class="mc-detail" style="color:var(--danger)">Te pasaste <strong>${fmxn(gastado-m.meta)}</strong> de tu reto</div>`:`<div class="mc-detail">¡Vas bien! Te quedan <strong>${fmxn(m.meta-gastado)}</strong></div>`}<button style="margin-top:10px;width:100%;padding:8px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar reto</button></div>`;}
-function renderMetaAhorro(m){const ahorrado=m.ahorrado||0;const pct=m.meta>0?Math.min((ahorrado/m.meta)*100,100):0;const fc=pct>=100?'green':pct>=80?'warn':'';const badge=pct>=100?'badge-ok':pct>=50?'badge-warn':'badge-over';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${m.nombre}</div><div class="mc-sub">Meta mensual: ${fmxn(m.meta)}<
+function renderMetaReto(m,totals){const gastado=totals[m.categoria]||0;const pct=m.meta>0?Math.min((gastado/m.meta)*100,100):0;const logrado=gastado<=m.meta;const fc=pct>=100?'over':pct>=80?'warn':'';const badge=logrado?'badge-ok':'badge-over';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${m.nomb
