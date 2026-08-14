@@ -188,6 +188,15 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .historial-mes-header:active{background:rgba(84,41,22,0.04)}
 .historial-mes-body{border-top:1px solid var(--border)}
 .historial-arrow{font-size:18px;color:var(--muted);transition:transform 0.2s;display:inline-block}
+.busq-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px 10px 34px;font-size:13px;font-family:'Helvetica Neue',sans-serif;color:var(--text);outline:none;box-sizing:border-box}
+.busq-input:focus{border-color:var(--s)}
+.busq-input::placeholder{color:var(--muted)}
+.busq-wrap{position:relative;margin-bottom:12px}
+.busq-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted);pointer-events:none}
+.busq-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;padding:4px;display:none}
+.busq-results{margin-bottom:14px}
+.busq-result-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);font-family:'Helvetica Neue',sans-serif}
+.busq-result-item:last-child{border-bottom:none}
 .meta-card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:14px;margin-bottom:10px}
 .mc-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .mc-emoji{font-size:24px}
@@ -470,6 +479,12 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">Historial completo</div>
       <button onclick="abrirExportHistorial()" style="font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);background:none;border:0.5px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer">📥 Exportar</button>
     </div>
+    <div class="busq-wrap">
+      <span class="busq-icon">🔍</span>
+      <input class="busq-input" id="busq-hist" type="text" placeholder="Buscar gastos… (comercio, categoría, monto)" inputmode="search" autocomplete="off">
+      <button class="busq-clear" id="busq-clear" onclick="limpiarBusqueda()">✕</button>
+    </div>
+    <div id="busq-results" class="busq-results" style="display:none"></div>
     <div class="pending-banner" id="pending-banner"><span>🟡</span><span id="pending-text"></span></div>
     <div id="fijos-pendientes-card" style="display:none;margin-bottom:14px"></div>
     <div id="resumen-content" style="margin-bottom:14px"></div>
@@ -689,7 +704,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 10';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 12';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1047,9 +1062,8 @@ function switchTab(t){
   // Renderizar el tab activo
   if(t==='hoy') _renderHoyContent();
   else if(t==='historial'){
-    // Limpiar meses anteriores para forzar recarga fresca al cambiar de tab
-    const hc=document.getElementById('historial-meses-container');
-    if(hc) hc.innerHTML='';
+    // Los meses anteriores ya cargados se conservan (son datos cerrados, no cambian).
+    // Se invalidan explícitamente vía invalidarHistorial() cuando se edita/borra un gasto pasado.
     _renderHistorialContent();
   }
   else if(t==='metas') _renderMetasContent();
@@ -1059,6 +1073,7 @@ function renderAll(){
   _renderHoyContent();
   // Historial y Metas solo si su tab está activo (evita doble fetch)
   if(activeTab==='historial') _renderHistorialContent();
+  initBuscador();
   if(activeTab==='metas') _renderMetasContent();
 }
 
@@ -1266,6 +1281,73 @@ function normalizarMesDisplay(mesRaw){
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════
+// BUSCADOR DEL HISTÓRICO
+// ═══════════════════════════════════════════════════════════
+let _busqTimeout=null;
+function initBuscador(){
+  const inp=document.getElementById('busq-hist');
+  if(!inp)return;
+  inp.addEventListener('input',()=>{
+    clearTimeout(_busqTimeout);
+    const q=inp.value.trim();
+    const btn=document.getElementById('busq-clear');
+    if(btn)btn.style.display=q?'block':'none';
+    if(q.length<2){document.getElementById('busq-results').style.display='none';mostrarHistorialNormal(true);return;}
+    _busqTimeout=setTimeout(()=>buscarGastosHistorial(q),400);
+  });
+}
+function limpiarBusqueda(){
+  const inp=document.getElementById('busq-hist');
+  if(inp)inp.value='';
+  const btn=document.getElementById('busq-clear');
+  if(btn)btn.style.display='none';
+  document.getElementById('busq-results').style.display='none';
+  mostrarHistorialNormal(true);
+}
+function mostrarHistorialNormal(show){
+  ['resumen-content','historial-meses-container','comparativa-container','fijos-pendientes-card','pending-banner'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=show?'':'none';
+  });
+}
+async function buscarGastosHistorial(q){
+  if(!q||q.length<2)return;
+  const resEl=document.getElementById('busq-results');
+  if(!resEl)return;
+  mostrarHistorialNormal(false);
+  resEl.style.display='block';
+  resEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;font-family:sans-serif">🔍 Buscando…</div>';
+  try{
+    const res=await fetchGet('action=buscarGastos&q='+encodeURIComponent(q)+'&userId='+currentAcct);
+    if(!res||!res.ok){resEl.innerHTML='<div style="padding:14px;color:var(--danger);font-size:12px;font-family:sans-serif">'+(res?.error||'Error de búsqueda')+'</div>';return;}
+    const items=res.resultados||[];
+    if(!items.length){resEl.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;font-family:sans-serif"><span style="display:block;font-size:22px;margin-bottom:6px">🤷</span>Sin resultados para "'+q+'"</div>';return;}
+    // Group by month
+    const byMes={};
+    items.forEach(g=>{const m=g.mes||'Sin mes';if(!byMes[m])byMes[m]=[];byMes[m].push(g);});
+    const totalGlobal=items.reduce((s,g)=>s+g.monto,0);
+    let html='<div style="padding:8px 4px 6px;display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:sans-serif;color:var(--muted)">'+items.length+' resultado'+(items.length>1?'s':'')+'</div><div style="font-size:13px;font-weight:700;color:var(--acc);font-family:sans-serif">'+fmxn(totalGlobal)+'</div></div>';
+    Object.entries(byMes).forEach(([mes,gastos])=>{
+      const mesTotal=gastos.reduce((s,g)=>s+g.monto,0);
+      html+='<div class="historial-mes-card"><div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)"><span style="font-size:12px;font-weight:600;color:var(--text);font-family:sans-serif">'+mes+'</span><span style="font-size:12px;font-weight:600;color:var(--acc);font-family:sans-serif">'+fmxn(mesTotal)+'</span></div>';
+      gastos.forEach(g=>{
+        const cat=getCat(g.categoria);
+        html+='<div class="busq-result-item"><div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0"><span style="font-size:16px;flex-shrink:0">'+cat.e+'</span><div style="min-width:0"><div style="font-size:12px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(g.nota||cat.l)+'</div><div style="font-size:10px;color:var(--muted)">'+g.fecha+(g.quien?' · '+g.quien:'')+'</div></div></div><div style="font-size:13px;font-weight:600;color:var(--acc);flex-shrink:0">'+fmxn(g.monto)+'</div></div>';
+      });
+      html+='</div>';
+    });
+    resEl.innerHTML=html;
+  }catch(e){
+    resEl.innerHTML='<div style="padding:14px;color:var(--danger);font-size:12px;font-family:sans-serif">'+e.message+'</div>';
+  }
+}
+
+// Fuerza recarga del histórico en el próximo render (usar al mutar meses pasados)
+function invalidarHistorial(){
+  const hc=document.getElementById('historial-meses-container');
+  if(hc) hc.innerHTML='';
+}
 async function loadHistorialMeses(){
   const cont=document.getElementById('historial-meses-container');
   if(!cont)return;
@@ -1545,6 +1627,7 @@ async function submitGasto(){
 async function refreshData(){
   const btn=document.getElementById('btn-refresh');
   if(btn){btn.style.transform='rotate(360deg)';btn.style.transition='transform 0.6s ease';btn.disabled=true;}
+  invalidarHistorial();
   await loadData();
   if(btn){setTimeout(()=>{btn.style.transform='';btn.style.transition='';btn.disabled=false;},700);}
   showToast('Datos actualizados ✓');
@@ -1751,7 +1834,6 @@ async function appendToUserSheet(email,sheetName,row){const sheetId=await getUse
 async function readUserSheet(email,sheetName,range='A:Z'){const sheetId=await getUserSheetId(email);const res=await sheetsRequest(`${SHEETS_API}/${sheetId}/values/${sheetName}!${range}`);return res.values||[];}
 async function saveConfigToSheet(email,config){const sheetId=await getUserSheetId(email);await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Configuracion!A1:B1:clear`,'POST',{});await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Configuracion!A1:append?valueInputOption=RAW`,'POST',{values:[['config_json',JSON.stringify(config)]]});}
 async function registrarGastoPersonal(email,gasto){const mes=(()=>{const d=new Date(gasto.fecha+'T12:00:00');return MONTHS[d.getMonth()]+' '+d.getFullYear();})();const id=uid();await appendToUserSheet(email,'Log_Gastos',[new Date().toLocaleString('es-MX'),gasto.fecha,gasto.categoria,gasto.monto,gasto.quien,gasto.nota||'',mes,id,gasto.pago||'']);return{ok:true,id};}
-async function getGastosPersonal(email,mesNombre){const rows=await readUserSheet(email,'Log_Gastos','A:I');if(rows.length<=1)return[];return rows.slice(1).filter(r=>{const mes=String(r[6]||'').trim();const mesNorm=mesNombre.toLowerCase();return mes.toLowerCase()===mesNorm||mes.toLowerCase().startsWith(mesNombre.split(' ')[0].toLowerCase());}).map((r,i)=>({rowIndex:i+2,id:r[7]||'',fecha:String(r[1]||'').split('T')[0],categoria:r[2]||'',monto:parseFloat(r[3])||0,quien:r[4]||'',nota:r[5]||'',mes:r[6]||'',pago:r[8]||''})).sort((a,b)=>b.fecha>a.fecha?1:-1);}
 async function getAllGastosPersonal(email){const rows=await readUserSheet(email,'Log_Gastos','A:I');if(rows.length<=1)return[];return rows.slice(1).filter(r=>r[1]&&r[3]).map((r,i)=>({rowIndex:i+2,id:r[7]||'',fecha:String(r[1]||'').split('T')[0],categoria:r[2]||'',monto:parseFloat(r[3])||0,quien:r[4]||'',nota:r[5]||'',mes:r[6]||'',pago:r[8]||''})).sort((a,b)=>b.fecha>a.fecha?1:-1);}
 
 // ════════════════════════════════════════════════════════════
@@ -1840,7 +1922,7 @@ async function eliminarGastoMes(rowIndex){
   if(!isOnline){showToast('Sin conexión — no se puede eliminar ahora');return;}
   try{
     const res=await postAPI({action:'eliminarGasto',token:TOKEN,rowIndex,userId:currentAcct});
-    if(res.ok){showToast('Gasto eliminado ✓');await loadData();}
+    if(res.ok){showToast('Gasto eliminado ✓');invalidarHistorial();await loadData();}
     else showToast('Error al eliminar — intenta de nuevo');
   }catch(e){showToast('Sin conexión');}
 }
@@ -2020,12 +2102,9 @@ async function guardarEdicionGastoHistorial(gastoOriginal){
   }catch(e){showToast('Sin conexión');}
   document.getElementById('modal-gasto').classList.remove('open');
   document.getElementById('btn-submit-gasto').onclick=submitGasto;
-  if(isOnline)await loadData();else renderAll();
+  if(isOnline){invalidarHistorial();await loadData();}else renderAll();
 }
 
-function confirmarEliminarGastoHistorial(rowIndex,desc){
-  showConfirm('Eliminar gasto',`¿Eliminar "${desc}"?`,'Eliminar',true,()=>eliminarGastoMes(rowIndex));
-}
 
 
 // ════════════════════════════════════════════════════════════
@@ -2514,27 +2593,49 @@ async function procesarTicket(file){
   }
 }
 
+let _partidasTicket=null;
+let _partidasComercio='';
+let _partidasFecha='';
+let _partidasDestino='';
+
 function aplicarTicket(destino,d){
   _origenCaptura='ticket';
+
+  // Multi-partida: si hay más de una partida, abrir modal de confirmación
+  if(d.partidas && d.partidas.length>1){
+    _partidasTicket=d.partidas;
+    _partidasComercio=d.comercio||'';
+    _partidasFecha=d.fecha||today();
+    _partidasDestino=destino;
+    mostrarEstadoTicket(destino, d.confianza==='baja'?'error':'ok',
+      d.confianza==='baja'?'⚠️ Ticket poco legible — revisa las partidas':'✓ '+d.partidas.length+' partidas detectadas');
+    mostrarPartidasModal(d);
+    playSuccess();
+    return;
+  }
+
+  // Una sola partida: flujo clásico
+  const p = (d.partidas&&d.partidas[0])||{};
+  const monto = p.monto||d.total||0;
+  const categoria = p.categoria||null;
   const aviso = d.confianza==='baja'
     ? '⚠️ Ticket poco legible — revisa bien el monto antes de registrar'
     : '✓ Ticket leído — revisa los datos antes de registrar';
   mostrarEstadoTicket(destino, d.confianza==='baja'?'error':'ok', aviso);
 
   if(destino==='drawer'){
-    if(d.monto)    document.getElementById('drawer-amount').value = d.monto;
-    if(d.comercio) document.getElementById('drawer-desc').value  = d.comercio;
+    if(monto) document.getElementById('drawer-amount').value = monto;
+    if(d.comercio) document.getElementById('drawer-desc').value = d.comercio;
     if(d.fecha){
       const f = document.getElementById('drawer-fecha');
       f.value = d.fecha;
-      f.style.borderColor = 'var(--s)';           // resalta que la fecha vino del ticket
-      f.style.background  = 'rgba(183,152,88,0.08)';
+      f.style.borderColor = 'var(--s)';
+      f.style.background = 'rgba(183,152,88,0.08)';
     }
-    // La categoría sugerida solo se ofrece, nunca se impone
     const sug = document.getElementById('drawer-sug');
     if(sug){
-      if(d.categoria && d.categoria!==preselCat){
-        const cat = getCat(d.categoria);
+      if(categoria && categoria!==preselCat){
+        const cat = getCat(categoria);
         sug.setAttribute('style','background:rgba(241,193,102,0.13);border:1px solid rgba(241,193,102,0.45);border-radius:11px;padding:11px 13px;margin-bottom:11px;display:flex;align-items:center;gap:10px;cursor:pointer');
         sug.innerHTML =
           '<span style="font-size:20px;flex-shrink:0">'+cat.e+'</span>'+
@@ -2542,18 +2643,17 @@ function aplicarTicket(destino,d){
             '<div style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:#8a6a1a;font-weight:600;font-family:\'Helvetica Neue\',sans-serif">Categoría sugerida</div>'+
             '<div style="font-size:13px;color:var(--text);font-weight:600;margin-top:1px;font-family:\'Helvetica Neue\',sans-serif">'+cat.l+'</div>'+
           '</div><span style="font-size:16px;color:var(--muted);flex-shrink:0">→</span>';
-        sug.onclick = ()=>cambiarCategoriaDrawer(d.categoria);
+        sug.onclick = ()=>cambiarCategoriaDrawer(categoria);
       }else{
         sug.style.display='none';
       }
     }
   }else{
-    if(d.monto)    document.getElementById('inp-amount').value = d.monto;
+    if(monto)      document.getElementById('inp-amount').value = monto;
     if(d.comercio) document.getElementById('inp-desc').value   = d.comercio;
     if(d.fecha)    document.getElementById('inp-fecha').value  = d.fecha;
-    // En el modal ya existe la parrilla de categorías: se marca la sugerida
-    if(d.categoria){
-      const chip = document.querySelector('.cat-chip-m[data-cat="'+d.categoria+'"]');
+    if(categoria){
+      const chip = document.querySelector('.cat-chip-m[data-cat="'+categoria+'"]');
       if(chip){
         document.querySelectorAll('.cat-chip-m').forEach(x=>x.classList.remove('selected'));
         chip.classList.add('selected');
@@ -2562,6 +2662,83 @@ function aplicarTicket(destino,d){
     }
   }
   playSuccess();
+}
+
+function mostrarPartidasModal(d){
+  const modal=document.getElementById('modal-partidas');
+  if(!modal)return;
+  const titulo=document.getElementById('partidas-title');
+  const sub=document.getElementById('partidas-subtitle');
+  const lista=document.getElementById('partidas-list');
+  titulo.textContent=(d.comercio||'Ticket')+' — '+d.partidas.length+' partidas';
+  sub.textContent=(d.fecha||today())+' · Total: '+fmxn(d.total||0);
+  const cats=getCats();
+  lista.innerHTML=d.partidas.map((p,i)=>{
+    const cat=p.categoria?getCat(p.categoria):null;
+    return '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.descripcion+'</div>'+
+        '<div style="font-size:14px;font-weight:700;color:var(--acc);font-family:sans-serif;flex-shrink:0;margin-left:8px">'+fmxn(p.monto)+'</div>'+
+      '</div>'+
+      '<select id="partida-cat-'+i+'" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:sans-serif;color:var(--text)">'+
+        '<option value=""'+(p.categoria?'':' selected')+'>— Sin categoría —</option>'+
+        cats.map(c=>'<option value="'+c.id+'"'+(p.categoria===c.id?' selected':'')+'>'+c.e+' '+c.l+'</option>').join('')+
+      '</select>'+
+      '<label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted);font-family:sans-serif;cursor:pointer">'+
+        '<input type="checkbox" id="partida-chk-'+i+'" checked style="accent-color:var(--p)"> Incluir'+
+      '</label>'+
+    '</div>';
+  }).join('');
+  modal.style.display='block';
+}
+
+function cerrarPartidas(){
+  document.getElementById('modal-partidas').style.display='none';
+  _partidasTicket=null;
+}
+
+async function registrarPartidas(){
+  if(!_partidasTicket)return;
+  const btn=document.getElementById('btn-registrar-partidas');
+  btn.disabled=true;btn.textContent='Registrando…';
+  const gastos=[];
+  _partidasTicket.forEach((p,i)=>{
+    const chk=document.getElementById('partida-chk-'+i);
+    if(chk&&!chk.checked)return;
+    const sel=document.getElementById('partida-cat-'+i);
+    const cat=sel?sel.value:'';
+    if(!cat){showToast('Asigna categoría a "'+p.descripcion+'"');btn.disabled=false;btn.textContent='Registrar todo';return;}
+    gastos.push({
+      fecha:_partidasFecha||today(),
+      categoria:cat,
+      monto:p.monto,
+      quien:currentUser||'',
+      nota:p.descripcion+(_partidasComercio?' ('+_partidasComercio+')':''),
+      pago:'',
+      origen:'ticket',
+      localId:'pt_'+Date.now().toString(36)+'_'+i
+    });
+  });
+  if(gastos.length!==_partidasTicket.filter((_,i)=>{const c=document.getElementById('partida-chk-'+i);return !c||c.checked;}).length)return;
+  if(!gastos.length){showToast('No hay partidas seleccionadas');btn.disabled=false;btn.textContent='Registrar todo';return;}
+  try{
+    const res=await postAPI({action:'registrarBatch',token:TOKEN,gastos,userId:currentAcct});
+    if(res&&res.ok){
+      showToast(gastos.length+' partida'+(gastos.length>1?'s':'')+' registrada'+(gastos.length>1?'s':'')+' ✓');
+      cerrarPartidas();
+      // Cerrar drawer/modal de origen
+      if(_partidasDestino==='drawer'){const d=document.getElementById('drawer-gasto');if(d)d.style.display='none';}
+      else{const m=document.getElementById('modal-gasto');if(m)m.style.display='none';}
+      invalidarHistorial();
+      await loadData();
+    }else{
+      showToast((res&&res.error)||'Error al registrar');
+    }
+  }catch(e){
+    showToast(e.message||'Error de red');
+  }finally{
+    btn.disabled=false;btn.textContent='Registrar todo';
+  }
 }
 
 // Cambia la categoría del drawer sin perder lo ya capturado
@@ -2709,5 +2886,19 @@ if(savedUser){currentUser=savedUser;applyBgImage();afterLogin();}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- MODAL PARTIDAS TICKET -->
+  <div id="modal-partidas" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(42,24,16,0.55);backdrop-filter:blur(6px)">
+    <div style="position:absolute;bottom:0;left:0;right:0;max-height:92vh;background:var(--bg);border-radius:18px 18px 0 0;overflow-y:auto;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);font-family:'Helvetica Neue',sans-serif;margin-bottom:4px" id="partidas-title">Partidas del ticket</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:14px" id="partidas-subtitle"></div>
+      <div id="partidas-list"></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button onclick="cerrarPartidas()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:13px;font-size:14px;font-family:'Helvetica Neue',sans-serif;color:var(--text);cursor:pointer">Cancelar</button>
+        <button id="btn-registrar-partidas" onclick="registrarPartidas()" style="flex:2;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;font-weight:600">Registrar todo</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
