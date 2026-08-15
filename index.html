@@ -598,6 +598,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
     <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="inp-fijo-nombre" placeholder="ej. Renta, Luz, Netflix"></div>
     <div class="form-group"><label class="form-label">Monto esperado</label><input type="number" class="form-input" id="inp-fijo-monto" placeholder="$0 (dejar vacío si varía)" inputmode="decimal"></div>
     <div class="form-group"><label class="form-label">Categoría</label><select class="form-input" id="inp-fijo-cat" style="padding:10px 12px"></select></div>
+    <div class="form-group"><label class="form-label">Grupo</label><select class="form-input" id="inp-fijo-grupo" style="padding:10px 12px"></select></div>
     <div style="display:flex;gap:10px">
       <div class="form-group" style="flex:1"><label class="form-label">Frecuencia</label><select class="form-input" id="inp-fijo-freq" style="padding:10px 12px">
         <option value="mensual">Mensual</option><option value="bimestral">Bimestral</option><option value="trimestral">Trimestral</option><option value="semestral">Semestral</option><option value="anual">Anual</option>
@@ -715,7 +716,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 14';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 15';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -956,7 +957,7 @@ async function finishOnboarding(){
 // ════════════════════════════════════════════════════════════
 function openFijoModal(idx){
   editFijoIdx=idx!==undefined?idx:null;
-  const data=userConfig||obData;const f=idx!==undefined?data.fijos[idx]:null;
+  const data=getFijosStore();const f=idx!==undefined?data.fijos[idx]:null;
   document.getElementById('fijo-modal-title').textContent=f?'Editar gasto fijo':'Nuevo gasto fijo';
   document.getElementById('inp-fijo-emoji').value=f?.e||'';
   document.getElementById('inp-fijo-nombre').value=f?.l||'';
@@ -967,6 +968,8 @@ function openFijoModal(idx){
   const catSel=document.getElementById('inp-fijo-cat');
   const cats=getCats();
   catSel.innerHTML='<option value="">— Sin categoría —</option>'+cats.map(ct=>'<option value="'+ct.id+'"'+(f?.categoria===ct.id?' selected':'')+'>'+ct.e+' '+ct.l+'</option>').join('');
+  const grpSel=document.getElementById('inp-fijo-grupo');
+  grpSel.innerHTML=GRUPOS_FIJOS.map(g=>'<option value="'+g.id+'"'+((f?.grupo||'vivienda')===g.id?' selected':'')+'>'+g.e+' '+g.l+'</option>').join('');
   // Frequency
   const freqSel=document.getElementById('inp-fijo-freq');
   freqSel.value=f?.frecuencia||'mensual';
@@ -985,21 +988,22 @@ function saveFijo(){
   if(!e){showToast('El emoji es obligatorio');return;}
   if(!l){showToast('Ingresa un nombre');return;}
   if(!variable&&(!m||m<=0)){showToast('Ingresa un monto o marca como variable');return;}
-  const fijo={id:l.toLowerCase().replace(/\s+/g,'_'),e,l,monto:m,categoria:cat,frecuencia:freq,diaMes:Math.min(Math.max(dia,1),28),variable};
-  const data=userConfig||obData;
+  const fijo={id:l.toLowerCase().replace(/\s+/g,'_'),e,l,monto:m,categoria:cat,frecuencia:freq,diaMes:Math.min(Math.max(dia,1),28),variable,grupo:document.getElementById('inp-fijo-grupo')?.value||'vivienda'};
+  const data=getFijosStore();
+  if(!data.fijos)data.fijos=[];
   if(editFijoIdx!==null)data.fijos[editFijoIdx]=fijo;else data.fijos.push(fijo);
-  if(userConfig)sls('config_'+currentUser.email,userConfig);
+  persistFijosStore(data);
   document.getElementById('modal-fijo').classList.remove('open');
   if(obStep===3)renderOnboarding();
   else{renderSettings();renderSeccionFijos();}
 }
 function deleteFijo(){
   if(editFijoIdx===null)return;
-  const data=userConfig||obData;
+  const data=getFijosStore();
   const nombre=data.fijos[editFijoIdx]?.l||'este fijo';
   showConfirm('Eliminar gasto fijo','¿Eliminar "'+nombre+'"?','Eliminar',true,()=>{
     data.fijos.splice(editFijoIdx,1);
-    if(userConfig)sls('config_'+currentUser.email,userConfig);
+    persistFijosStore(data);
     document.getElementById('modal-fijo').classList.remove('open');
     renderSettings();renderSeccionFijos();
     showToast('Fijo eliminado');
@@ -1137,6 +1141,41 @@ function renderAll(){
 // ════════════════════════════════════════════════════════════
 // HOY — Tab principal (hero-mes + categorías + recientes)
 // ════════════════════════════════════════════════════════════
+function getCategoriasFavoritas(n){
+  // Cuenta uso de cada categoría en el mes actual (dato completo en memoria).
+  // Se guarda un contador persistente para que categorías usadas en meses previos
+  // no desaparezcan de golpe al iniciar un mes nuevo con pocos registros aún.
+  const freq={};
+  gastosMes.forEach(g=>{freq[g.categoria]=(freq[g.categoria]||0)+1;});
+  const histKey='pb_freq_cats_'+currentAcct;
+  let histFreq={};
+  try{histFreq=JSON.parse(localStorage.getItem(histKey)||'{}');}catch(e){histFreq={};}
+  // Actualiza el contador histórico con lo del mes actual (acumulado, no reemplazo)
+  const mesKey=getMesNombre();
+  if(histFreq._ultimoMes!==mesKey){
+    // Nuevo mes: descuenta peso a los contadores viejos (decaimiento simple) y anota el mes
+    Object.keys(histFreq).forEach(k=>{if(k!=='_ultimoMes')histFreq[k]=Math.round((histFreq[k]||0)*0.6);});
+    histFreq._ultimoMes=mesKey;
+  }
+  Object.entries(freq).forEach(([catId,count])=>{histFreq[catId]=(histFreq[catId]||0)+count;});
+  try{localStorage.setItem(histKey,JSON.stringify(histFreq));}catch(e){}
+  const cats=getCats();
+  const conUso=cats.filter(c=>(histFreq[c.id]||0)>0).sort((a,b)=>(histFreq[b.id]||0)-(histFreq[a.id]||0));
+  const sinUso=cats.filter(c=>!(histFreq[c.id]||0));
+  const ordenado=[...conUso,...sinUso];
+  return {favoritas:ordenado.slice(0,n),resto:ordenado.slice(n)};
+}
+function abrirTodasCategorias(){
+  const {resto}=getCategoriasFavoritas(6);
+  const todas=getCats();
+  const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
+  document.getElementById('todas-cats-list').innerHTML=todas.map(c=>{
+    const spent=totals[c.id]||0;const lim=budgets[c.id]||c.b||0;
+    return '<div onclick="cerrarTodasCategorias();openGastoModal(\''+c.id+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer"><span style="font-size:20px;flex-shrink:0">'+c.e+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">'+c.l+'</div></div><div style="font-size:12px;color:var(--muted);font-family:sans-serif;flex-shrink:0">'+fmxn(spent)+(lim>0?' / '+fmxn(lim):'')+'</div></div>';
+  }).join('');
+  document.getElementById('modal-todas-cats').style.display='block';
+}
+function cerrarTodasCategorias(){document.getElementById('modal-todas-cats').style.display='none';}
 function rHoy(){_renderHoyContent();}
 function _renderHoyContent(){
   // Hero imagen
@@ -1159,7 +1198,8 @@ function _renderHoyContent(){
   }
   // Categorías
   const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});
-  const cats=getCats();
+  const {favoritas,resto}=getCategoriasFavoritas(6);
+  const cats=favoritas;
   const cont=document.getElementById('cat-chips-container');
   if(!cont)return;
   cont.innerHTML=`<div class="cat-chips-grid">${cats.map(c=>{
@@ -1171,7 +1211,7 @@ function _renderHoyContent(){
       <div class="cc-prog"><div class="cc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div>
       <div class="cc-amounts"><span class="cc-spent">${fmxn(spent)}</span><span>${lim>0?'/ '+fmxn(lim):'sin límite'}</span></div>
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}${resto.length?`<div class="cc" style="display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="abrirTodasCategorias()"><div style="text-align:center"><div style="font-size:20px;color:var(--muted)">⋯</div><div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:2px">Ver todas</div></div></div>`:''}</div>`;
   // Gastos recientes (últimos 4)
   const recEl=document.getElementById('gastos-recientes');
   if(!recEl)return;
@@ -1424,9 +1464,9 @@ function renderCatalogo(){
   document.getElementById('cat-counter').textContent=act.length+' activo'+(act.length!==1?'s':'');
 }
 
-function toggleCatFijo(id){const data=userConfig||obData;if(!data.fijos)data.fijos=[];const idx=data.fijos.findIndex(f=>(f.id||f.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(idx>=0){data.fijos.splice(idx,1);}else{const cf=CATALOGO_FIJOS.find(x=>x.id===id);if(!cf)return;data.fijos.push({id:cf.id,l:cf.l,e:cf.e,monto:0,categoria:'',frecuencia:cf.frecuencia,diaMes:1,variable:cf.variable,grupo:cf.grupo});}if(userConfig)sls('config_'+currentUser.email,userConfig);renderCatalogo();}
-function updateCatMonto(inp){const id=inp.getAttribute('data-fm');const data=userConfig||obData;const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.monto=parseFloat(inp.value)||0;if(userConfig)sls('config_'+currentUser.email,userConfig);}}
-function updateCatFreq(sel){const id=sel.getAttribute('data-ff');const data=userConfig||obData;const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.frecuencia=sel.value;if(userConfig)sls('config_'+currentUser.email,userConfig);}}
+function toggleCatFijo(id){const data=getFijosStore();if(!data.fijos)data.fijos=[];const idx=data.fijos.findIndex(f=>(f.id||f.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(idx>=0){data.fijos.splice(idx,1);}else{const cf=CATALOGO_FIJOS.find(x=>x.id===id);if(!cf)return;data.fijos.push({id:cf.id,l:cf.l,e:cf.e,monto:0,categoria:'',frecuencia:cf.frecuencia,diaMes:1,variable:cf.variable,grupo:cf.grupo});}persistFijosStore(data);renderCatalogo();}
+function updateCatMonto(inp){const id=inp.getAttribute('data-fm');const data=getFijosStore();const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.monto=parseFloat(inp.value)||0;persistFijosStore(data);}}
+function updateCatFreq(sel){const id=sel.getAttribute('data-ff');const data=getFijosStore();const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.frecuencia=sel.value;persistFijosStore(data);}}
 function filtrarCatalogo(){const q=(document.getElementById('catalogo-search')?.value||'').toLowerCase();document.querySelectorAll('[data-ci]').forEach(el=>{el.style.display=(el.getAttribute('data-cn')||'').toLowerCase().includes(q)?'':'none';});document.querySelectorAll('[data-gc]').forEach(g=>{let vis=false,n=g.nextElementSibling;while(n&&!n.hasAttribute('data-gc')){if(n.hasAttribute('data-ci')&&n.style.display!=='none')vis=true;n=n.nextElementSibling;}g.style.display=vis?'':'none';});}
 // ═══ ¿ME LO PUEDO COMPRAR? ═══
 function abrirEvaluadorCompra(){document.getElementById('comprar-que').value='';document.getElementById('comprar-precio').value='';document.getElementById('comprar-msi').value='no';document.getElementById('comprar-meses').value='1';document.getElementById('comprar-resultado').innerHTML='';document.getElementById('modal-comprar').classList.add('open');}
@@ -1574,7 +1614,7 @@ function selMetaCat(el){document.querySelectorAll('#meta-cat-grid .cat-chip-m').
 function saveMeta(tipo){
   const emoji=document.getElementById('meta-emoji').value.trim();const nombre=document.getElementById('meta-nombre').value.trim();const monto=parseFloat(document.getElementById('meta-monto').value);
   if(!emoji){showToast('El emoji es obligatorio');return;}if(!nombre){showToast('Ingresa un nombre');return;}if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
-  const ingreso=esHogar(currentAcct)?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);const fijos=esHogar(currentAcct)?DEFAULT_FIJOS:(userConfig?.fijos||[]);const totalFijos=fijos.reduce((s,f)=>s+(f.monto||0),0);const disponible=ingreso-totalFijos;
+  const ingreso=esHogar(currentAcct)?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);const fijos=getFijosDelMes();const totalFijos=fijos.reduce((s,f)=>s+(f.monto||0),0);const disponible=ingreso-totalFijos;
   const metas=gls(`pb_metas_${currentAcct}`)||[];const totalMetas=metas.filter(m=>m.activo!==false&&m.tipo!=='reto').reduce((s,m)=>s+(m.meta||0),0);
   if(totalMetas+monto>disponible)showToast('⚠️ Esta meta supera tu disponible');
   const meta={id:uid(),tipo,emoji,nombre,meta:monto,ahorrado:0,abonos:[],activo:true,creadoEn:today()};
@@ -2864,7 +2904,20 @@ function cambiarCategoriaDrawer(catId){
 // Solo aparece si hay fijos sin registrar este mes.
 // ════════════════════════════════════════════════════════════
 function renderFijosPendientes(){renderSeccionFijos();}
-function getFijosDelMes(){const cfg=esHogar(currentAcct)?gls('casa_config'):(userConfig||{});return((cfg&&cfg.fijos)||DEFAULT_FIJOS||[]).map(f=>({...f,grupo:f.grupo||'vivienda'}));}
+function getFijosStore(){
+  // Fuente única de verdad para leer/escribir fijos, según la cuenta activa (personal u hogar).
+  if(esHogar(currentAcct)){
+    let cc=gls('casa_config')||{};
+    if(!cc.fijos)cc.fijos=DEFAULT_FIJOS.map(f=>({...f}));
+    return cc;
+  }
+  return userConfig||obData||{};
+}
+function persistFijosStore(data){
+  if(esHogar(currentAcct))sls('casa_config',data);
+  else if(userConfig)sls('config_'+currentUser.email,userConfig);
+}
+function getFijosDelMes(){const cfg=getFijosStore();return((cfg&&cfg.fijos)||DEFAULT_FIJOS||[]).map(f=>({...f,grupo:f.grupo||'vivienda'}));}
 function detectarFijoPagado(fijo){const n=(fijo.nombre||fijo.l||'').trim().toLowerCase();if(!n)return null;return gastosMes.find(g=>{const nt=(g.nota||'').toLowerCase();return(g.origen==='fijo'&&nt.includes(n))||nt.includes(n);})||null;}
 let _fijosVista='mes';
 function setFijosVista(v){_fijosVista=v;['fv-mes','fv-anual'].forEach(id=>{const b=document.getElementById(id);if(!b)return;const act=(id==='fv-mes'&&v==='mes')||(id==='fv-anual'&&v==='anual');b.style.background=act?'var(--card)':'transparent';b.style.color=act?'var(--text)':'var(--muted)';b.style.fontWeight=act?'500':'400';});const m=v==='anual'?12:1;document.querySelectorAll('.fv-m').forEach(el=>{el.textContent=fmxn((parseFloat(el.dataset.b)||0)*m);});document.querySelectorAll('.fv-p').forEach(el=>{el.textContent=v==='mes'?'/mes':'/año';});}
@@ -2929,6 +2982,18 @@ if(savedUser){currentUser=savedUser;applyBgImage();afterLogin();}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- MODAL TODAS LAS CATEGORIAS -->
+  <div id="modal-todas-cats" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(42,24,16,0.55);backdrop-filter:blur(6px)">
+    <div style="position:absolute;bottom:0;left:0;right:0;max-height:80vh;background:var(--bg);border-radius:18px 18px 0 0;overflow-y:auto;padding:16px 0 calc(16px + env(safe-area-inset-bottom,0px))">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
+      <div style="padding:0 16px 12px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:15px;font-weight:700;color:var(--text);font-family:'Helvetica Neue',sans-serif">Todas las categorías</div>
+        <button onclick="cerrarTodasCategorias()" style="background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer">✕</button>
+      </div>
+      <div id="todas-cats-list"></div>
+    </div>
+  </div>
 
   <!-- MODAL CATALOGO FIJOS -->
   <div id="modal-catalogo" style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg)"><div style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:10px"><button onclick="cerrarCatalogo()" style="font-size:18px;color:var(--text);background:none;border:none;cursor:pointer;padding:0">←</button><div style="flex:1;font-size:15px;font-weight:500;color:var(--text);font-family:sans-serif">Catálogo de gastos fijos</div><span id="cat-counter" style="background:rgba(183,152,88,0.15);color:var(--s);font-size:12px;padding:3px 10px;border-radius:12px;font-weight:500">0</span></div><div style="padding:14px;overflow-y:auto;max-height:calc(100vh - 60px);-webkit-overflow-scrolling:touch"><div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;font-family:sans-serif">Activa los gastos fijos que aplican a tu hogar.</div><div style="position:relative;margin-bottom:14px"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted)">🔍</span><input id="catalogo-search" oninput="filtrarCatalogo()" type="text" placeholder="Buscar..." style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 12px 9px 32px;font-size:13px;color:var(--text);box-sizing:border-box;font-family:sans-serif"></div><div id="catalogo-list"></div><div onclick="openFijoModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border:1px dashed var(--border);border-radius:10px;margin-top:12px;cursor:pointer;font-size:13px;color:var(--muted);font-family:sans-serif">+ Agregar gasto fijo personalizado</div><div style="height:40px"></div></div></div>
