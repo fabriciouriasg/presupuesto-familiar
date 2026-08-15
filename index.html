@@ -470,6 +470,9 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div class="hint-pill">👆 Toca una categoría para registrar un gasto</div>
     </div>
     <div style="padding:12px 14px 0">
+      <div id="saldo-disponible-card"></div>
+    </div>
+    <div style="padding:12px 14px 0">
       <div id="cat-chips-container"></div>
     </div>
     <div style="padding:0 14px">
@@ -747,7 +750,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 30';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 31';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -772,6 +775,8 @@ const PERIODO_MESES={mensual:1,bimestral:2,trimestral:3,semestral:6,anual:12};
 const GRUPOS_FIJOS=[{id:'vivienda',l:'Vivienda',e:'🏠'},{id:'servicios',l:'Servicios',e:'💧'},{id:'seguros',l:'Seguros',e:'🛡️'},{id:'suscripciones',l:'Suscripciones',e:'📱'},{id:'auto',l:'Auto',e:'🚗'},{id:'impuestos',l:'Impuestos y finanzas',e:'📄'},{id:'familia',l:'Familia',e:'👨‍👩‍👧'}];
 const CATALOGO_FIJOS=[{id:'hipoteca_renta',l:'Hipoteca / Renta',e:'🏠',grupo:'vivienda',frecuencia:'mensual',variable:false,desc:'Pago de vivienda'},{id:'predial',l:'Predial',e:'🏛️',grupo:'vivienda',frecuencia:'bimestral',variable:false,desc:'Impuesto predial',duplicable:true},{id:'gas',l:'Gas',e:'🔥',grupo:'vivienda',frecuencia:'mensual',variable:true,desc:'Gas LP o natural',duplicable:true},{id:'mantenimiento',l:'Cuota mantenimiento',e:'🔧',grupo:'vivienda',frecuencia:'mensual',variable:false,desc:'Depto o fraccionamiento',duplicable:true},{id:'cfe',l:'Luz (CFE)',e:'💡',grupo:'servicios',frecuencia:'bimestral',variable:true,desc:'Electricidad',duplicable:true},{id:'agua',l:'Agua (SIAPA)',e:'💧',grupo:'servicios',frecuencia:'mensual',variable:true,desc:'Agua potable',duplicable:true},{id:'internet',l:'Internet / TV',e:'📡',grupo:'servicios',frecuencia:'mensual',variable:false,desc:'Total Play, Telmex, Izzi'},{id:'celular',l:'Plan celular',e:'📱',grupo:'servicios',frecuencia:'mensual',variable:false,desc:'AT&T, Telcel'},{id:'basura',l:'Recolección basura',e:'🗑️',grupo:'servicios',frecuencia:'mensual',variable:false,desc:'Servicio semanal'},{id:'seguro_gm',l:'Seguro gastos médicos',e:'🏥',grupo:'seguros',frecuencia:'mensual',variable:false,desc:'Por persona'},{id:'seguro_auto',l:'Seguro de auto',e:'🚗',grupo:'seguros',frecuencia:'anual',variable:false,desc:'Por vehículo'},{id:'imss',l:'IMSS voluntario',e:'🏥',grupo:'seguros',frecuencia:'mensual',variable:false,desc:'Seguro social'},{id:'seguro_vida',l:'Seguro de vida',e:'💚',grupo:'seguros',frecuencia:'mensual',variable:false,desc:'Por persona'},{id:'netflix',l:'Netflix',e:'🎬',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Streaming video'},{id:'spotify',l:'Spotify',e:'🎵',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Streaming música'},{id:'hbo',l:'Max (HBO)',e:'🎭',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Streaming video'},{id:'disney',l:'Disney+',e:'✨',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Streaming video'},{id:'youtube',l:'YouTube Premium',e:'▶️',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Video sin anuncios'},{id:'gym_cat',l:'Gym',e:'💪',grupo:'suscripciones',frecuencia:'mensual',variable:false,desc:'Smartfit, Sports World'},{id:'gasolina_fijo',l:'Gasolina',e:'⛽',grupo:'auto',frecuencia:'mensual',variable:true,desc:'Estimado mensual'},{id:'lavado',l:'Lavado de auto',e:'🧽',grupo:'auto',frecuencia:'mensual',variable:false,desc:'Semanal'},{id:'refrendo',l:'Refrendo / Tenencia',e:'📋',grupo:'auto',frecuencia:'anual',variable:false,desc:'Pago anual'},{id:'servicio_auto',l:'Servicio auto',e:'🔩',grupo:'auto',frecuencia:'semestral',variable:true,desc:'Mantenimiento'},{id:'isr',l:'Impuestos SAT',e:'📄',grupo:'impuestos',frecuencia:'mensual',variable:true,desc:'ISR, IVA'},{id:'declaracion',l:'Declaración anual',e:'📊',grupo:'impuestos',frecuencia:'anual',variable:true,desc:'Abril'},{id:'comisiones',l:'Comisiones bancarias',e:'🏦',grupo:'impuestos',frecuencia:'anual',variable:false,desc:'Anualidad TDC'},{id:'colegiatura',l:'Colegiatura',e:'📚',grupo:'familia',frecuencia:'mensual',variable:false,desc:'Escuela, kinder'},{id:'guarderia',l:'Guardería',e:'👶',grupo:'familia',frecuencia:'mensual',variable:false,desc:'Cuidado menores'},{id:'aportacion_fam',l:'Aportación familiar',e:'❤️',grupo:'familia',frecuencia:'mensual',variable:false,desc:'Apoyo a padres'},{id:'lavanderia',l:'Lavandería',e:'👕',grupo:'familia',frecuencia:'mensual',variable:false,desc:'Servicio semanal'}];
 const DEFAULT_PAGOS = ['HSBC','Invex','Efectivo'];
+const DEFAULT_FUENTES = [];
+const DEFAULT_TARJETAS = [];
 const THEMES = [
   {id:'mayne',name:'Mayne',swatches:['#542916','#b79858','#a13a1e','#88b8ce','#fefaf0'],p:'#542916',s:'#b79858',acc:'#a13a1e',bg:'#fefaf0'},
   {id:'clearsky',name:'Clear Sky',swatches:['#5b9bd5','#90c4f0','#ffd166','#f0f8ff','#ff6b6b'],p:'#5b9bd5',s:'#90c4f0',acc:'#ffd166',bg:'#f0f8ff'},
@@ -835,6 +840,27 @@ function persistPagosStore(data){
   if(_catalogoOnboardingMode)return;
   if(esHogar(currentAcct))sls('casa_config',data);
   else if(userConfig)sls('config_'+currentUser.email,userConfig);
+}
+// ═══ Store genérico de cuenta — reusado por fuentes de ingreso, tarjetas y reglas de reparto ═══
+function getCuentaStore(){
+  if(_catalogoOnboardingMode)return obData;
+  if(esHogar(currentAcct))return gls('casa_config')||{};
+  return userConfig||obData||{};
+}
+function persistCuentaStore(data){
+  if(_catalogoOnboardingMode)return;
+  if(esHogar(currentAcct))sls('casa_config',data);
+  else if(userConfig)sls('config_'+currentUser.email,userConfig);
+}
+function getFuentesIngreso(acct){
+  const a=acct||currentAcct;
+  const cfg=esHogar(a)?(gls('casa_config')||{}):(a===currentAcct?(userConfig||{}):(gls('config_'+a)||{}));
+  return cfg.fuentesIngreso||DEFAULT_FUENTES;
+}
+function getTarjetas(acct){
+  const a=acct||currentAcct;
+  const cfg=esHogar(a)?(gls('casa_config')||{}):(a===currentAcct?(userConfig||{}):(gls('config_'+a)||{}));
+  return cfg.tarjetas||DEFAULT_TARJETAS;
 }
 const getPagos=()=>{const s=getPagosStore();return(s&&s.pagos)||DEFAULT_PAGOS;};
 
@@ -1244,7 +1270,52 @@ function abrirTodasCategorias(){
   document.getElementById('modal-todas-cats').style.display='block';
 }
 function cerrarTodasCategorias(){document.getElementById('modal-todas-cats').style.display='none';}
-function rHoy(){_renderHoyContent();}
+function rHoy(){_renderHoyContent();renderSaldoCard();}
+function renderSaldoCard(){
+  const el=document.getElementById('saldo-disponible-card');
+  if(!el)return;
+  const quien=currentUser?.name||userConfig?.nombre||'Yo';
+  const disponible=getSaldoDisponible(quien);
+  const comprometido=getComprometidoDelMes(quien);
+  const proyectado=getSaldoProyectado(quien);
+  const ingresosMes=getIngresosDelMes(quien);
+  const cuotas=getCuotasComprometidasDelMes(quien);
+  const reembolsos=getReembolsosPendientes(quien);
+  let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Disponible ahora</div>
+    <div style="font-size:28px;font-weight:600;color:var(--p);margin-bottom:2px">${fmxn(disponible)}</div>
+    <div style="font-size:11px;color:var(--muted)">${ingresosMes.length} fuente${ingresosMes.length!==1?'s':''} de ingreso este mes</div>`;
+  if(comprometido>0){
+    html+=`<div onclick="abrirDetalleComprometido()" style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:var(--muted)">⏳ Comprometido</span>
+        <span style="font-size:12px;color:var(--s);font-weight:600">${fmxn(comprometido)} ›</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-size:11px;color:var(--muted)">Disponible después de pendientes</span>
+      <span style="font-size:16px;color:var(--text);font-weight:600">${fmxn(proyectado)}</span>
+    </div>`;
+  }
+  html+=`<div style="display:flex;gap:8px;margin-top:12px">
+    <button onclick="abrirRegistrarIngreso()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--text);cursor:pointer">+ Ingreso</button>
+    <button onclick="abrirGestionFinanzas()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--text);cursor:pointer">⚙️ Fuentes y tarjetas</button>
+  </div></div>`;
+  el.innerHTML=html;
+}
+function abrirDetalleComprometido(){
+  const quien=currentUser?.name||userConfig?.nombre||'Yo';
+  const cuotas=getCuotasComprometidasDelMes(quien);
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:12px">Comprometido este mes</div>';
+  if(!cuotas.length){
+    html+='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;font-family:sans-serif">Sin compromisos pendientes 👍</div>';
+  }else{
+    cuotas.forEach(c=>{
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:13px;color:var(--text);font-family:sans-serif">'+escapeHtml(c.desc)+(c.cuotaTotal>1?' ('+c.cuotaIndex+'/'+c.cuotaTotal+')':'')+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">Vence '+c.fecha+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;color:var(--acc);font-weight:600;font-family:sans-serif">'+fmxn(c.monto)+'</span><button onclick="marcarCuotaPagada(\x27'+c.id+'\x27);cerrarModalGenerico();renderSaldoCard();" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer;color:var(--muted)">Pagar</button></div></div>';
+    });
+  }
+  mostrarModalGenerico(html);
+}
 function _renderHoyContent(){
   // Hero imagen
   const email=currentUser?.email||'default';
@@ -1601,6 +1672,321 @@ function filtrarCatalogo(){const q=(document.getElementById('catalogo-search')?.
 // ═══ ¿ME LO PUEDO COMPRAR? ═══
 function abrirEvaluadorCompra(){document.getElementById('comprar-que').value='';document.getElementById('comprar-precio').value='';document.getElementById('comprar-msi').value='no';document.getElementById('comprar-meses').value='1';document.getElementById('comprar-resultado').innerHTML='';document.getElementById('modal-comprar').classList.add('open');}
 function evaluarCompra(){const que=document.getElementById('comprar-que').value.trim()||'compra';const precio=parseFloat(document.getElementById('comprar-precio').value);if(!precio||precio<=0){showToast('Ingresa un precio');return;}const msi=document.getElementById('comprar-msi').value==='si';const meses=msi?Math.max(parseInt(document.getElementById('comprar-meses').value)||1,1):1;const pm=msi?Math.round(precio/meses*100)/100:precio;const ing=esHogar(currentAcct)?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);const fj=getFijosDelMes();const tF=fj.reduce((s,f)=>s+(f.monto||0),0);const tV=gastosMes.reduce((s,g)=>s+g.monto,0);const dM=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();const dT=new Date().getDate();const vP=dT>0?Math.round((tV/dT)*dM):0;const fl=ing-tF-vP;const flC=fl-pm;const pI=ing>0?Math.round((pm/ing)*100):0;const pF=fl>0?Math.round((pm/fl)*100):100;const mR=fl>0?Math.round(precio/fl*10)/10:999;let v,clr,rec;if(pm<=fl*0.3){v='✅ VIABLE';clr='var(--success)';rec=msi?'A MSI cómodo, adelante.':'Pago de contado viable.';}else if(pm<=fl*0.7){v='⚠️ AJUSTADO';clr='var(--s)';rec=msi?'A MSI manejable, no acumules más deudas.':'Considera MSI para no apretar flujo.';}else{v='🛑 NO RECOMENDABLE';clr='var(--danger)';rec='Excede tu capacidad mensual.';}document.getElementById('comprar-resultado').innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px"><div style="font-size:16px;font-weight:700;color:'+clr+';font-family:sans-serif;margin-bottom:4px">'+v+'</div><div style="font-size:12px;color:var(--text);font-family:sans-serif;margin-bottom:12px">'+rec+'</div><div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif"><span style="color:var(--muted)">Pago mensual</span><span style="color:var(--text);font-weight:500">'+fmxn(pm)+(msi?' × '+meses+' meses':'')+'</span></div><div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif"><span style="color:var(--muted)">% de tu ingreso</span><span style="color:var(--text);font-weight:500">'+pI+'%</span></div><div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif"><span style="color:var(--muted)">% de tu flujo libre</span><span style="color:var(--text);font-weight:500">'+pF+'%</span></div><div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif"><span style="color:var(--muted)">Flujo libre actual</span><span style="color:var(--text);font-weight:500">'+fmxn(fl)+'</span></div><div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif"><span style="color:var(--muted)">Flujo DESPUÉS</span><span style="font-weight:500;color:'+(flC>=0?'var(--success)':'var(--danger)')+'">'+fmxn(flC)+'</span></div>'+(pm>fl*0.3?'<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px"><div style="font-size:11px;color:var(--muted);font-family:sans-serif">Ahorrando flujo libre: <b>'+mR+' meses</b> para contado</div></div>':'')+'</div></div>';}
+// ═══════════════════════════════════════════════════════════
+// SALDO DISPONIBLE — fuentes de ingreso, tarjetas, comprometido
+// ═══════════════════════════════════════════════════════════
+function mostrarModalGenerico(html){
+  document.getElementById('modal-generico-body').innerHTML=html;
+  document.getElementById('modal-generico').style.display='block';
+}
+function cerrarModalGenerico(){document.getElementById('modal-generico').style.display='none';}
+function saldoKey(quien){return `pb_saldo_${currentAcct}_${(quien||'').toLowerCase().replace(/\s+/g,'_')}`;}
+function getSaldoReal(quien){return parseFloat(localStorage.getItem(saldoKey(quien)))||0;}
+function ajustarSaldoReal(quien,delta){
+  const k=saldoKey(quien);
+  const actual=getSaldoReal(quien);
+  localStorage.setItem(k,String(actual+delta));
+}
+function mesActualStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function fechaEnMesActual(fecha){return fecha&&fecha.startsWith(mesActualStr());}
+
+// ── Fuentes de ingreso ──
+function ingresosKey(){return `pb_ingresos_registrados_${currentAcct}`;}
+function getIngresosRegistrados(){return gls(ingresosKey())||[];}
+function registrarIngresoFuente(fuenteId,monto,fecha,nota,quien){
+  const lista=getIngresosRegistrados();
+  const q=quien||currentUser?.name||userConfig?.nombre||'Yo';
+  lista.push({id:uid(),fuenteId:fuenteId||null,monto,fecha,nota:nota||'',quien:q});
+  sls(ingresosKey(),lista);
+  ajustarSaldoReal(q,monto);
+  // Si viene de una fuente fija/fondo, guardamos cuándo y cuánto se registró (mismo patrón que fijoEstaCubierto)
+  if(fuenteId){
+    const data=getCuentaStore();
+    const f=(data.fuentesIngreso||[]).find(x=>x.id===fuenteId);
+    if(f){f.ultimoRegistro=fecha;f.montoUltimoRegistro=monto;persistCuentaStore(data);}
+  }
+}
+function getIngresosDelMes(quien){
+  return getIngresosRegistrados().filter(i=>fechaEnMesActual(i.fecha)&&(!quien||i.quien===quien));
+}
+function fuenteEstaCubierta(fuente){
+  if(!fuente.ultimoRegistro)return null;
+  const periodo={mensual:1,quincenal:1,semanal:1}[fuente.frecuencia]||1;
+  return fechaEnMesActual(fuente.ultimoRegistro)?{monto:fuente.montoUltimoRegistro,fecha:fuente.ultimoRegistro}:null;
+}
+
+// ── Tarjetas de crédito ──
+function tarjetaMovsKey(){return `pb_tarjeta_movs_${currentAcct}`;}
+function getTarjetaMovimientos(){return gls(tarjetaMovsKey())||[];}
+function calcularFechaPagoCuota(tarjeta,fechaCompra,numeroCuota){
+  // Determina en qué fecha de pago cae la cuota N, según corte/pago de la tarjeta.
+  const fc=new Date(fechaCompra+'T12:00:00');
+  let mesBase=fc.getMonth(),anioBase=fc.getFullYear();
+  // Si la compra fue después del corte de ese mes, la primera cuota cae hasta el pago del mes siguiente.
+  if(fc.getDate()>tarjeta.diaCorte)mesBase++;
+  const mesCuota=mesBase+(numeroCuota-1);
+  const fechaPago=new Date(anioBase,mesCuota,tarjeta.diaPago);
+  return fechaPago.getFullYear()+'-'+String(fechaPago.getMonth()+1).padStart(2,'0')+'-'+String(fechaPago.getDate()).padStart(2,'0');
+}
+function registrarCompraTarjeta(tarjetaId,quien,montoTotal,meses,fechaCompra,desc){
+  const data=getCuentaStore();
+  const tarjeta=(data.tarjetas||[]).find(t=>t.id===tarjetaId);
+  if(!tarjeta)return false;
+  const n=Math.max(parseInt(meses)||1,1);
+  const cuota=Math.round((montoTotal/n)*100)/100;
+  const movs=getTarjetaMovimientos();
+  for(let i=1;i<=n;i++){
+    movs.push({
+      id:uid(),tarjetaId,quien,desc:desc||tarjeta.nombre,
+      monto:i===n?montoTotal-cuota*(n-1):cuota, // ajusta el residuo en la última cuota
+      fecha:calcularFechaPagoCuota(tarjeta,fechaCompra,i),
+      cuotaIndex:i,cuotaTotal:n,pagada:false
+    });
+  }
+  sls(tarjetaMovsKey(),movs);
+  // Un solo pago que cae dentro del mes actual se descuenta de inmediato (según lo definido).
+  if(n===1&&fechaEnMesActual(movs[movs.length-1].fecha)){
+    marcarCuotaPagada(movs[movs.length-1].id,true);
+  }
+  return true;
+}
+function marcarCuotaPagada(movId,silencioso){
+  const movs=getTarjetaMovimientos();
+  const m=movs.find(x=>x.id===movId);
+  if(!m||m.pagada)return;
+  m.pagada=true;
+  sls(tarjetaMovsKey(),movs);
+  ajustarSaldoReal(m.quien,-m.monto);
+  if(!silencioso)showToast('Cuota marcada como pagada ✓');
+}
+
+// ── UI: Registrar ingreso ──
+function abrirRegistrarIngreso(){
+  const fuentes=getCuentaStore().fuentesIngreso||[];
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:14px">Registrar ingreso</div>';
+  if(fuentes.length){
+    html+='<div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:8px">¿De cuál fuente?</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+    fuentes.forEach(f=>{
+      html+='<div class="pago-chip" data-fuente="'+f.id+'" onclick="selFuenteIngreso(this)" style="flex:0 0 auto;padding:8px 12px">'+escapeHtml(f.nombre)+'</div>';
+    });
+    html+='<div class="pago-chip" data-fuente="" onclick="selFuenteIngreso(this)" style="flex:0 0 auto;padding:8px 12px">Otro</div></div>';
+  }
+  html+=`<div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="inp-ingreso-fuente-monto" placeholder="0.00" inputmode="decimal"></div>
+  <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-input" id="inp-ingreso-fuente-fecha" value="${today()}"></div>
+  <div class="form-group"><label class="form-label">Nota (opcional)</label><input type="text" class="form-input" id="inp-ingreso-fuente-nota" placeholder="ej. Quincena, renta depto"></div>
+  <button class="btn-submit" onclick="submitRegistrarIngreso()">Registrar ingreso</button>`;
+  mostrarModalGenerico(html);
+}
+let _fuenteSeleccionada=null;
+function selFuenteIngreso(el){
+  document.querySelectorAll('#modal-generico-body [data-fuente]').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  _fuenteSeleccionada=el.dataset.fuente||null;
+  if(_fuenteSeleccionada){
+    const f=(getCuentaStore().fuentesIngreso||[]).find(x=>x.id===_fuenteSeleccionada);
+    if(f&&f.monto)document.getElementById('inp-ingreso-fuente-monto').value=f.monto;
+  }
+}
+function submitRegistrarIngreso(){
+  const monto=parseFloat(document.getElementById('inp-ingreso-fuente-monto').value);
+  const fecha=document.getElementById('inp-ingreso-fuente-fecha').value;
+  const nota=document.getElementById('inp-ingreso-fuente-nota').value.trim();
+  if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
+  if(!fecha){showToast('Selecciona una fecha');return;}
+  registrarIngresoFuente(_fuenteSeleccionada,monto,fecha,nota);
+  cerrarModalGenerico();
+  _fuenteSeleccionada=null;
+  renderSaldoCard();
+  showToast('Ingreso registrado ✓');
+}
+
+// ── UI: Gestión de fuentes de ingreso y tarjetas ──
+function abrirGestionFinanzas(){
+  const data=getCuentaStore();
+  const fuentes=data.fuentesIngreso||[];
+  const tarjetas=data.tarjetas||[];
+  const FREQ={fijo:'Fijo recurrente',variable:'Variable',fondo:'Fondo a dosificar'};
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:4px">Fuentes de ingreso</div>';
+  if(!fuentes.length){
+    html+='<div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Aún no tienes fuentes configuradas.</div>';
+  }else{
+    fuentes.forEach((f,i)=>{
+      const cob=fuenteEstaCubierta(f);
+      html+='<div onclick="abrirEditarFuente('+i+')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:6px;cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">'+escapeHtml(f.nombre)+'</div><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(183,152,88,0.15);color:var(--s)">'+FREQ[f.tipo]+'</span></div><div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">'+(cob?'Registrado este mes: '+fmxn(cob.monto):(f.monto?'Esperado: '+fmxn(f.monto):'Sin monto esperado'))+(f.diaMes?' · Día '+f.diaMes:'')+'</div></div>';
+    });
+  }
+  html+='<button onclick="abrirEditarFuente()" style="width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:12px;font-family:sans-serif;cursor:pointer;margin-bottom:20px">+ Agregar fuente de ingreso</button>';
+  html+='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:4px">Tarjetas de crédito</div>';
+  if(!tarjetas.length){
+    html+='<div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Aún no tienes tarjetas configuradas.</div>';
+  }else{
+    tarjetas.forEach((t,i)=>{
+      html+='<div onclick="abrirEditarTarjeta('+i+')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:6px;cursor:pointer"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">💳 '+escapeHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">Corte día '+t.diaCorte+' · Pago día '+t.diaPago+'</div></div>';
+    });
+  }
+  html+='<button onclick="abrirEditarTarjeta()" style="width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:12px;font-family:sans-serif;cursor:pointer;margin-bottom:16px">+ Agregar tarjeta</button>';
+  if(tarjetas.length)html+='<button onclick="abrirRegistrarCompraCredito()" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--p);color:var(--bg);font-size:13px;font-weight:600;font-family:sans-serif;cursor:pointer">💳 Registrar compra a crédito</button>';
+  mostrarModalGenerico(html);
+}
+let _editFuenteIdx=null;
+function abrirEditarFuente(idx){
+  _editFuenteIdx=idx!==undefined?idx:null;
+  const data=getCuentaStore();
+  const f=idx!==undefined?(data.fuentesIngreso||[])[idx]:null;
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:14px">'+(f?'Editar fuente':'Nueva fuente de ingreso')+'</div>';
+  html+=`<div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="inp-fuente-nombre" placeholder="ej. Sueldo, Renta depto" value="${f?escapeHtml(f.nombre):''}"></div>
+  <div class="form-group"><label class="form-label">Tipo</label><select class="form-input" id="inp-fuente-tipo" style="padding:10px 12px" onchange="toggleCamposFuente()">
+    <option value="fijo"${f?.tipo==='fijo'?' selected':''}>Fijo recurrente</option>
+    <option value="variable"${f?.tipo==='variable'?' selected':''}>Variable</option>
+    <option value="fondo"${f?.tipo==='fondo'?' selected':''}>Fondo a dosificar</option>
+  </select></div>
+  <div id="campos-fuente-fijo" class="form-group" style="display:flex;gap:10px">
+    <div style="flex:1"><label class="form-label">Monto esperado</label><input type="number" class="form-input" id="inp-fuente-monto" placeholder="$0" value="${f?.monto||''}" inputmode="decimal"></div>
+    <div style="flex:1"><label class="form-label">Día del mes</label><input type="number" class="form-input" id="inp-fuente-dia" placeholder="1" min="1" max="28" value="${f?.diaMes||''}" inputmode="numeric"></div>
+  </div>
+  <div id="campos-fuente-fondo" class="form-group" style="display:none;gap:10px">
+    <div style="flex:1"><label class="form-label">Total del fondo</label><input type="number" class="form-input" id="inp-fuente-fondototal" placeholder="$0" value="${f?.fondoTotal||''}" inputmode="decimal"></div>
+    <div style="flex:1"><label class="form-label">Dosificación mensual</label><input type="number" class="form-input" id="inp-fuente-monto2" placeholder="$0" value="${f?.monto||''}" inputmode="decimal"></div>
+  </div>
+  <button class="btn-submit" onclick="saveFuenteIngreso()">Guardar</button>`;
+  if(f)html+='<button onclick="deleteFuenteIngreso()" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:12px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer;margin-top:8px">Eliminar fuente</button>';
+  mostrarModalGenerico(html);
+  toggleCamposFuente();
+}
+function toggleCamposFuente(){
+  const tipo=document.getElementById('inp-fuente-tipo').value;
+  document.getElementById('campos-fuente-fijo').style.display=tipo==='fondo'?'none':'flex';
+  document.getElementById('campos-fuente-fondo').style.display=tipo==='fondo'?'flex':'none';
+}
+function saveFuenteIngreso(){
+  const nombre=document.getElementById('inp-fuente-nombre').value.trim();
+  const tipo=document.getElementById('inp-fuente-tipo').value;
+  if(!nombre){showToast('Ingresa un nombre');return;}
+  const data=getCuentaStore();
+  if(!data.fuentesIngreso)data.fuentesIngreso=[];
+  const fuente={id:_editFuenteIdx!==null?data.fuentesIngreso[_editFuenteIdx].id:uid(),nombre,tipo};
+  if(tipo==='fondo'){
+    fuente.fondoTotal=parseFloat(document.getElementById('inp-fuente-fondototal').value)||0;
+    fuente.monto=parseFloat(document.getElementById('inp-fuente-monto2').value)||0;
+  }else{
+    fuente.monto=parseFloat(document.getElementById('inp-fuente-monto').value)||0;
+    fuente.diaMes=parseInt(document.getElementById('inp-fuente-dia').value)||null;
+  }
+  if(_editFuenteIdx!==null)data.fuentesIngreso[_editFuenteIdx]=fuente;
+  else data.fuentesIngreso.push(fuente);
+  persistCuentaStore(data);
+  _editFuenteIdx=null;
+  abrirGestionFinanzas();
+  showToast('Fuente guardada ✓');
+}
+function deleteFuenteIngreso(){
+  if(_editFuenteIdx===null)return;
+  const data=getCuentaStore();
+  data.fuentesIngreso.splice(_editFuenteIdx,1);
+  persistCuentaStore(data);
+  _editFuenteIdx=null;
+  abrirGestionFinanzas();
+  showToast('Fuente eliminada');
+}
+let _editTarjetaIdx=null;
+function abrirEditarTarjeta(idx){
+  _editTarjetaIdx=idx!==undefined?idx:null;
+  const data=getCuentaStore();
+  const t=idx!==undefined?(data.tarjetas||[])[idx]:null;
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:14px">'+(t?'Editar tarjeta':'Nueva tarjeta')+'</div>';
+  html+=`<div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="inp-tarjeta-nombre" placeholder="ej. HSBC Oro" value="${t?escapeHtml(t.nombre):''}"></div>
+  <div class="form-group" style="display:flex;gap:10px">
+    <div style="flex:1"><label class="form-label">Día de corte</label><input type="number" class="form-input" id="inp-tarjeta-corte" placeholder="15" min="1" max="28" value="${t?.diaCorte||''}" inputmode="numeric"></div>
+    <div style="flex:1"><label class="form-label">Día de pago</label><input type="number" class="form-input" id="inp-tarjeta-pago" placeholder="5" min="1" max="28" value="${t?.diaPago||''}" inputmode="numeric"></div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:14px">Estas fechas las ves en tu estado de cuenta o en la app de tu banco — no las adivinamos por ti.</div>
+  <button class="btn-submit" onclick="saveTarjeta()">Guardar</button>`;
+  if(t)html+='<button onclick="deleteTarjeta()" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:12px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer;margin-top:8px">Eliminar tarjeta</button>';
+  mostrarModalGenerico(html);
+}
+function saveTarjeta(){
+  const nombre=document.getElementById('inp-tarjeta-nombre').value.trim();
+  const diaCorte=parseInt(document.getElementById('inp-tarjeta-corte').value);
+  const diaPago=parseInt(document.getElementById('inp-tarjeta-pago').value);
+  if(!nombre){showToast('Ingresa un nombre');return;}
+  if(!diaCorte||!diaPago){showToast('Ingresa día de corte y de pago');return;}
+  const data=getCuentaStore();
+  if(!data.tarjetas)data.tarjetas=[];
+  const tarjeta={id:_editTarjetaIdx!==null?data.tarjetas[_editTarjetaIdx].id:uid(),nombre,diaCorte,diaPago};
+  if(_editTarjetaIdx!==null)data.tarjetas[_editTarjetaIdx]=tarjeta;
+  else data.tarjetas.push(tarjeta);
+  persistCuentaStore(data);
+  _editTarjetaIdx=null;
+  abrirGestionFinanzas();
+  showToast('Tarjeta guardada ✓');
+}
+function deleteTarjeta(){
+  if(_editTarjetaIdx===null)return;
+  const data=getCuentaStore();
+  data.tarjetas.splice(_editTarjetaIdx,1);
+  persistCuentaStore(data);
+  _editTarjetaIdx=null;
+  abrirGestionFinanzas();
+  showToast('Tarjeta eliminada');
+}
+
+// ── UI: Registrar compra a crédito (MSI) ──
+function abrirRegistrarCompraCredito(){
+  const tarjetas=getCuentaStore().tarjetas||[];
+  if(!tarjetas.length){showToast('Agrega una tarjeta primero');return;}
+  const roster=getQuienRoster();
+  const mio=currentUser?.name||userConfig?.nombre||'Usuario';
+  let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:14px">Compra a crédito</div>';
+  html+=`<div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="inp-credito-desc" placeholder="ej. Refrigerador, laptop"></div>
+  <div class="form-group"><label class="form-label">Monto total</label><input type="number" class="form-input" id="inp-credito-monto" placeholder="$0" inputmode="decimal"></div>
+  <div class="form-group"><label class="form-label">Tarjeta</label><select class="form-input" id="inp-credito-tarjeta" style="padding:10px 12px">`;
+  tarjetas.forEach(t=>{html+='<option value="'+t.id+'">'+escapeHtml(t.nombre)+'</option>';});
+  html+='</select></div>';
+  if(roster.length>1){
+    html+='<div class="form-group"><label class="form-label">¿Quién paga?</label><select class="form-input" id="inp-credito-quien" style="padding:10px 12px">';
+    roster.forEach(n=>{html+='<option value="'+n+'"'+(n===mio?' selected':'')+'>'+escapeHtml(n)+'</option>';});
+    html+='</select></div>';
+  }
+  html+=`<div class="form-group" style="display:flex;gap:10px">
+    <div style="flex:1"><label class="form-label">Fecha de compra</label><input type="date" class="form-input" id="inp-credito-fecha" value="${today()}"></div>
+    <div style="flex:1"><label class="form-label">Meses (1 = un pago)</label><input type="number" class="form-input" id="inp-credito-meses" value="1" min="1" max="24" inputmode="numeric"></div>
+  </div>
+  <button class="btn-submit" onclick="submitCompraCredito()">Registrar compra</button>`;
+  mostrarModalGenerico(html);
+}
+function submitCompraCredito(){
+  const desc=document.getElementById('inp-credito-desc').value.trim();
+  const monto=parseFloat(document.getElementById('inp-credito-monto').value);
+  const tarjetaId=document.getElementById('inp-credito-tarjeta').value;
+  const fecha=document.getElementById('inp-credito-fecha').value;
+  const meses=parseInt(document.getElementById('inp-credito-meses').value)||1;
+  const quienEl=document.getElementById('inp-credito-quien');
+  const quien=quienEl?quienEl.value:(currentUser?.name||userConfig?.nombre||'Usuario');
+  if(!desc){showToast('Agrega una descripción');return;}
+  if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
+  if(!fecha){showToast('Selecciona la fecha de compra');return;}
+  registrarCompraTarjeta(tarjetaId,quien,monto,meses,fecha,desc);
+  cerrarModalGenerico();
+  renderSaldoCard();
+  showToast(meses>1?'Compra a '+meses+' meses registrada ✓':'Compra registrada ✓');
+}
+function getCuotasComprometidasDelMes(quien){
+  return getTarjetaMovimientos().filter(m=>!m.pagada&&fechaEnMesActual(m.fecha)&&(!quien||m.quien===quien));
+}
+
+// ── Comprometido total (tarjetas + reembolsos pendientes) ──
+function getComprometidoDelMes(quien){
+  const cuotas=getCuotasComprometidasDelMes(quien).reduce((s,m)=>s+m.monto,0);
+  const reembolsos=getReembolsosPendientes(quien).reduce((s,r)=>s+r.monto,0);
+  return cuotas+reembolsos;
+}
+function getReembolsosPendientes(quien){
+  // Placeholder hasta construir reglas de reparto por categoría — hoy siempre vacío.
+  return [];
+}
+function getSaldoDisponible(quien){return getSaldoReal(quien);}
+function getSaldoProyectado(quien){return getSaldoReal(quien)-getComprometidoDelMes(quien);}
+
 // ═══ QUIÉN PAGA — selector independiente de quién registra ═══
 function getQuienRoster(){
   const mio=currentUser?.name||userConfig?.nombre||'Yo';
@@ -1935,6 +2321,7 @@ async function submitDrawer(){
     if(isCasa){const res=await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:preselCat,monto:amount,quien,nota:gasto.nota,pago,userId:'casa',origen});ok=res.ok;}
     else{const res=await registrarGastoPersonal(currentAcct,{fecha,categoria:preselCat,monto:amount,quien,nota:gasto.nota,pago,origen});ok=res.ok;}
     if(ok){showToast('Gasto registrado ✓');
+    ajustarSaldoReal(quien,-amount);renderSaldoCard();
     if(_origenCaptura==='fijo'&&_fijoRegistrando){const _mr=parseFloat(document.getElementById('drawer-amount')?.value);const _fr=document.getElementById('drawer-fecha')?.value;if(_mr>0)setTimeout(()=>registrarPagoFijo(_mr,_fr),600);}closeDrawer();await loadData();}else{const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Error — guardado offline 🟡');closeDrawer();updateBadges();}}catch(e){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Sin conexión — guardado offline 🟡');closeDrawer();updateBadges();}}
   playSuccess();
 }
@@ -1946,7 +2333,7 @@ async function submitGasto(){
   const gasto={localId:uid(),account:currentAcct,amount,categoria:catEl.dataset.cat,fecha,quien,nota:desc+(note?' · '+note:''),pago,userId:isCasa?'casa':currentAcct,origen:_origenCaptura||"manual"};
   const btn=document.getElementById('btn-submit-gasto');btn.disabled=true;btn.textContent='Guardando...';
   if(!isOnline){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();gastosMes.unshift({rowIndex:null,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,_pending:true});renderAll();}
-  else{try{let ok=false;if(esHogar(currentAcct)){const res=await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,userId:'casa'});ok=res.ok;}else{const res=await registrarGastoPersonal(currentAcct,{...gasto,monto:amount});ok=res.ok;}if(ok){showToast('Gasto registrado ✓');document.getElementById('modal-gasto').classList.remove('open');await loadData();}else{const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Error — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}catch(e){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Sin conexión — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}
+  else{try{let ok=false;if(esHogar(currentAcct)){const res=await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,userId:'casa'});ok=res.ok;}else{const res=await registrarGastoPersonal(currentAcct,{...gasto,monto:amount});ok=res.ok;}if(ok){showToast('Gasto registrado ✓');ajustarSaldoReal(quien,-amount);renderSaldoCard();document.getElementById('modal-gasto').classList.remove('open');await loadData();}else{const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Error — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}catch(e){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Sin conexión — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}
   playSuccess();
 }
 
@@ -3365,6 +3752,14 @@ if(savedUser){currentUser=savedUser;applyBgImage();afterLogin();}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- MODAL GENÉRICO — reusado por saldo, fuentes de ingreso, tarjetas -->
+  <div id="modal-generico" style="display:none;position:fixed;inset:0;z-index:1150;background:rgba(42,24,16,0.55);backdrop-filter:blur(6px)">
+    <div style="position:absolute;bottom:0;left:0;right:0;max-height:85vh;background:var(--bg);border-radius:18px 18px 0 0;overflow-y:auto;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
+      <div id="modal-generico-body"></div>
+    </div>
+  </div>
 
   <!-- MODAL RECATEGORIZAR -->
   <div id="modal-recategorizar" style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg)">
