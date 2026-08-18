@@ -750,7 +750,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 42';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 43';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -2088,160 +2088,210 @@ function selQuienChip(el){
 }
 
 // ═══════════════════════════════════════════════════════════
-// PROYECCIÓN FINANCIERA — todas las funciones prefijadas PROJ_
-// Aislado: no modifica ninguna función existente.
+// PROYECCIÓN FINANCIERA — PROJ_ prefix, aislado del resto
 // ═══════════════════════════════════════════════════════════
-let PROJ_expandida=false;
-let PROJ_filtroQ='todos';
+let PROJ_expandida=false,PROJ_filtroQ='todos',PROJ_girado=false;
 
 function PROJ_abrir(){
+  PROJ_expandida=false;PROJ_filtroQ='todos';PROJ_girado=false;
+  PROJ_aplicarOrientacion(false);
   document.getElementById('proj-overlay').style.display='block';
   PROJ_render();
 }
 function PROJ_cerrar(){
+  PROJ_aplicarOrientacion(false);
   document.getElementById('proj-overlay').style.display='none';
 }
+function PROJ_toggleGiro(){
+  PROJ_girado=!PROJ_girado;
+  PROJ_aplicarOrientacion(PROJ_girado);
+  const btn=document.getElementById('proj-btn-girar');
+  const lbl=document.getElementById('proj-giro-lbl');
+  if(btn){btn.style.background=PROJ_girado?'var(--bg-accent)':'var(--card)';btn.style.borderColor=PROJ_girado?'var(--border-accent)':'var(--border)';btn.style.color=PROJ_girado?'var(--acc)':'var(--muted)';}
+  if(lbl)lbl.textContent=PROJ_girado?'Vertical':'Girar';
+}
+function PROJ_aplicarOrientacion(horizontal){
+  try{
+    if(horizontal&&screen.orientation?.lock){
+      screen.orientation.lock('landscape').catch(()=>{});
+    }else if(!horizontal&&screen.orientation?.unlock){
+      screen.orientation.unlock();
+    }
+  }catch(e){}
+}
 
-// ── Genera los meses futuros con sus conceptos ──
 function PROJ_buildData(){
   const hoy=new Date();
-  const mesHoy=hoy.getMonth();
-  const anioHoy=hoy.getFullYear();
+  const MI=hoy.getMonth(),AI=hoy.getFullYear();
   const MESES_ES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const MESES_Q=[3,3,3,2,2,2,1,1,1,4,4,4]; // Q por índice de mes (0=ene)
+  const MESES_Q=['Q1','Q1','Q1','Q2','Q2','Q2','Q3','Q3','Q3','Q4','Q4','Q4'];
 
-  // Ingresos esperados este mes (fuentes fijas y fondos a dosificar)
-  const data=getCuentaStore();
-  const fuentes=(data.fuentesIngreso||[]).filter(f=>f.tipo==='fijo'||f.tipo==='fondo');
+  // ── Fuentes de ingreso ──
+  const storeData=getCuentaStore();
+  const fuentes=(storeData.fuentesIngreso||[]).filter(f=>f.tipo==='fijo'||f.tipo==='fondo');
 
-  // Cuotas de tarjeta pendientes de pagar
-  const movs=getTarjetaMovimientos().filter(m=>!m.pagada);
+  // ── Cuotas TDC pendientes — leer de TODAS las cuentas del usuario ──
+  // tarjetaMovsKey() usa currentAcct; lo leemos directo de localStorage
+  const movsKey='pb_tarjeta_movs_'+(currentAcct||'casa');
+  let movs=[];
+  try{movs=(JSON.parse(localStorage.getItem(movsKey)||'[]')).filter(m=>!m.pagada);}catch(e){}
 
-  // Fijos del mes (catálogo)
+  // ── Fijos del catálogo ──
   const fijosConf=getFijosStore().fijos||[];
 
-  // Calcular horizonte: hasta el último mes con algún compromiso (mín 3 meses)
-  let maxFecha=new Date(hoy.getFullYear(), hoy.getMonth()+3, 1);
-  movs.forEach(m=>{const d=new Date(m.fecha+'T12:00:00');if(d>maxFecha)maxFecha=d;});
+  // ── Horizonte: mínimo 3 meses, máximo hasta última cuota ──
+  let maxFecha=new Date(AI,MI+3,1);
+  movs.forEach(m=>{
+    const d=new Date(m.fecha.substring(0,7)+'-28');
+    if(d>maxFecha)maxFecha=d;
+  });
 
-  // Construir lista de meses
+  // ── Lista de meses ──
   const mesesList=[];
-  let cur=new Date(anioHoy,mesHoy,1);
+  let cur=new Date(AI,MI,1);
   while(cur<=maxFecha){
     const mi=cur.getMonth(),ai=cur.getFullYear();
     mesesList.push({
       key:`${ai}-${String(mi+1).padStart(2,'0')}`,
       label:MESES_ES[mi]+' '+String(ai).slice(2),
-      mes:mi,anio:ai,hoy:(mi===mesHoy&&ai===anioHoy),
-      q:'Q'+MESES_Q[mi]
+      mes:mi,anio:ai,
+      hoy:(mi===MI&&ai===AI),
+      q:MESES_Q[mi]
     });
     cur=new Date(ai,mi+1,1);
   }
 
-  // Construir conceptos
   const conceptos=[];
 
-  // Ingresos
+  // ── Ingresos: repetir en todos los meses ──
   fuentes.forEach(f=>{
-    const vals={};
-    mesesList.forEach(m=>{vals[m.key]=f.monto||0;});
-    conceptos.push({tipo:'ingreso',label:f.nombre,vals});
-  });
-
-  // Fijos
-  fijosConf.forEach(f=>{
     if(!f.monto||f.monto<=0)return;
     const vals={};
-    mesesList.forEach(m=>{
-      // Fijos anuales solo en el mes que aplican
-      if(f.periodo&&f.periodo>1){
-        const mesInicio=f.mesInicio!=null?f.mesInicio:0;
-        if(m.mes===mesInicio)vals[m.key]=-f.monto;
-      }else{vals[m.key]=-f.monto;}
-    });
-    conceptos.push({tipo:'fijo',label:f.nombre||f.l||f.id,vals});
+    mesesList.forEach(m=>{vals[m.key]=parseFloat(f.monto)||0;});
+    conceptos.push({tipo:'ingreso',label:f.nombre||'Ingreso',vals,fin:null});
   });
 
-  // Cuotas TDC
+  // ── Fijos: mensual o anual según periodo ──
+  fijosConf.forEach(f=>{
+    const monto=parseFloat(f.monto||f.montoUltimoPago||0);
+    if(monto<=0)return;
+    const nombre=f.nombre||f.l||f.id||'Fijo';
+    const vals={};
+    const esPeriodico=f.PERIODO_MESES&&f.PERIODO_MESES>1;
+    if(esPeriodico){
+      // Fijo periódico — buscar siguiente mes de pago
+      let mesRef=f.ultimoPago?new Date(f.ultimoPago+'T12:00:00').getMonth():MI;
+      mesesList.forEach(m=>{
+        if(m.mes===mesRef)vals[m.key]=-monto;
+      });
+    }else{
+      mesesList.forEach(m=>{vals[m.key]=-monto;});
+    }
+    conceptos.push({tipo:'fijo',label:nombre,vals,fin:null});
+  });
+
+  // ── TDC: agrupar cuotas por compra ──
   const agrupadas={};
   movs.forEach(m=>{
-    const k=m.desc+'__'+m.tarjetaId+'__'+m.cuotaTotal;
-    if(!agrupadas[k])agrupadas[k]={tipo:'tdc',label:m.desc+(m.cuotaTotal>1?' ×'+m.cuotaTotal+'MSI':''),tarjetaId:m.tarjetaId,cuotaTotal:m.cuotaTotal,vals:{},cuotas:[]};
-    const mes=m.fecha.substring(0,7);
-    agrupadas[k].vals[mes]=(agrupadas[k].vals[mes]||0)-m.monto;
-    agrupadas[k].cuotas.push(m.fecha.substring(0,7));
+    const k=(m.desc||'Compra')+'__'+m.tarjetaId+'__'+m.cuotaTotal;
+    if(!agrupadas[k]){
+      const lbl=(m.desc||'Compra')+(m.cuotaTotal>1?' ×'+m.cuotaTotal+'M':'');
+      agrupadas[k]={tipo:'tdc',label:lbl,vals:{},ultimoMes:''};
+    }
+    const mesStr=m.fecha.substring(0,7);
+    agrupadas[k].vals[mesStr]=(agrupadas[k].vals[mesStr]||0)-m.monto;
+    if(mesStr>agrupadas[k].ultimoMes)agrupadas[k].ultimoMes=mesStr;
   });
-  Object.values(agrupadas).forEach(c=>conceptos.push(c));
+  Object.values(agrupadas).forEach(c=>conceptos.push({...c,fin:c.ultimoMes}));
 
   return {mesesList,conceptos};
 }
 
-// ── Render principal ──
 function PROJ_render(){
   const {mesesList,conceptos}=PROJ_buildData();
-  if(!mesesList.length){
-    document.getElementById('proj-tbody').innerHTML='<tr><td style="padding:20px;color:var(--muted);font-family:sans-serif;font-size:13px">Sin datos suficientes aún. Agrega fuentes de ingreso o tarjetas de crédito.</td></tr>';
+  const el=document.getElementById('proj-overlay');
+  if(!el)return;
+
+  if(!mesesList.length||!conceptos.length){
+    document.getElementById('proj-tbody').innerHTML='<tr><td colspan="20" style="padding:30px 20px;text-align:center;color:var(--muted);font-size:13px;font-family:sans-serif">Configura fuentes de ingreso o tarjetas de crédito en Ajustes para ver tu proyección.</td></tr>';
+    document.getElementById('proj-hasta').textContent='';
     return;
   }
 
-  // Horizonte
-  const ult=mesesList[mesesList.length-1];
-  document.getElementById('proj-hasta').textContent='hasta '+ult.label;
+  document.getElementById('proj-hasta').textContent='hasta '+mesesList[mesesList.length-1].label;
 
-  // Filtros Q únicos
-  const qs=['todos',...[...new Set(mesesList.map(m=>m.q))]];
-  document.getElementById('proj-filtros').innerHTML=qs.map(q=>`<button onclick="PROJ_selQ('${q}',this)" style="font-size:11px;padding:5px 12px;border:0.5px solid var(--border);border-radius:10px;background:${PROJ_filtroQ===q?'var(--p)':'var(--card)'};color:${PROJ_filtroQ===q?'#fff':'var(--text)'};cursor:pointer;font-family:'Helvetica Neue',sans-serif;white-space:nowrap;flex-shrink:0">${q==='todos'?'Todo':q}</button>`).join('');
+  // ── Filtros Q ──
+  const qsUnicos=['todos',...[...new Set(mesesList.map(m=>m.q))]];
+  document.getElementById('proj-filtros').innerHTML=qsUnicos.map(q=>{
+    const on=PROJ_filtroQ===q;
+    return `<button onclick="PROJ_selQ('${q}')" style="font-size:11px;padding:5px 12px;border:0.5px solid ${on?'var(--acc)':'var(--border)'};border-radius:10px;background:${on?'var(--acc)':'var(--card)'};color:${on?'#fff':'var(--muted)'};cursor:pointer;font-family:'Helvetica Neue',sans-serif;white-space:nowrap;flex-shrink:0">${q==='todos'?'Todo':q}</button>`;
+  }).join('');
 
-  const mesFiltrados=PROJ_filtroQ==='todos'?mesesList:mesesList.filter(m=>m.hoy||m.q===PROJ_filtroQ);
-  document.getElementById('proj-subtitulo').textContent=mesFiltrados.length+' meses · '+(PROJ_expandida?'detalle':'resumen');
-  document.getElementById('proj-btn-expand').textContent=PROJ_expandida?'Compacta':'Expandida';
+  const ms=PROJ_filtroQ==='todos'?mesesList:mesesList.filter(m=>m.hoy||m.q===PROJ_filtroQ);
 
-  // Thead
-  const thCols=mesFiltrados.map(m=>`<th style="font-size:11px;font-weight:500;color:${m.hoy?'var(--acc)':'var(--muted)'};padding:6px 12px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;min-width:76px">${m.hoy?'● ':''  }${m.label}</th>`).join('');
-  document.getElementById('proj-thead').innerHTML=`<tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);position:sticky;left:0;background:var(--bg);min-width:120px;font-size:11px;color:var(--muted)">Concepto</th>${thCols}</tr>`;
+  // ── Botón expand ──
+  const ebtn=document.getElementById('proj-btn-expand');
+  if(ebtn)ebtn.textContent=PROJ_expandida?'Resumen':'Detalle';
 
-  // Tbody
-  const fmtV=v=>v===0?'—':(v>0?'+':'')+new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:0,maximumFractionDigits:0}).format(v);
-  const clsV=v=>v>0?'color:var(--text-success,#16a34a)':v<0?'color:var(--acc)':'color:var(--muted)';
+  // ── Thead ──
+  const thCols=ms.map(m=>`<th style="font-size:11px;font-weight:500;color:${m.hoy?'var(--acc)':'var(--muted)'};padding:7px 12px;border-bottom:0.5px solid var(--border);text-align:right;white-space:nowrap;min-width:78px;background:var(--card)">${m.hoy?'● ':''  }${m.label}</th>`).join('');
+  document.getElementById('proj-thead').innerHTML=`<tr><th style="text-align:left;padding:7px 12px;border-bottom:0.5px solid var(--border);position:sticky;left:0;background:var(--card);min-width:120px;font-size:11px;color:var(--muted);z-index:3">Concepto</th>${thCols}</tr>`;
+
+  const fmt=v=>{
+    if(!v||v===0)return '<span style="color:var(--muted)">—</span>';
+    const a=Math.abs(Math.round(v));
+    const s=a>=10000?'$'+(a/1000).toFixed(0)+'k':'$'+a.toLocaleString('es-MX');
+    return `<span style="color:${v>0?'var(--success,#16a34a)':v<0?'var(--acc)':'var(--muted)'}">${(v>0?'+':'-')+s}</span>`;
+  };
+  const fmtNeto=v=>{
+    if(!v||v===0)return '<span style="color:var(--muted)">$0</span>';
+    const a=Math.abs(Math.round(v));
+    const s=a>=10000?'$'+(a/1000).toFixed(0)+'k':'$'+a.toLocaleString('es-MX');
+    const clr=v>=0?'var(--success,#16a34a)':'var(--danger,#dc2626)';
+    return '<span style="color:'+clr+';font-weight:600">'+(v>0?'+':'-')+s+'</span>';
+  };
 
   let html='';
+  const rowStyle=(bg)=>`position:sticky;left:0;background:${bg};padding:7px 12px;font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;white-space:nowrap;z-index:2`;
+  const valStyle=`padding:7px 12px;border-bottom:0.5px solid var(--border);text-align:right;font-size:12px;font-family:'Helvetica Neue',sans-serif`;
+  const sep=(txt)=>`<tr><td colspan="${ms.length+1}" style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:8px 12px 3px;position:sticky;left:0;background:var(--bg);font-family:'Helvetica Neue',sans-serif">${txt}</td></tr>`;
+  const dot=(c)=>`<span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${c};margin-right:6px;vertical-align:middle;flex-shrink:0"></span>`;
+
   if(PROJ_expandida){
-    const tipos=[{k:'ingreso',l:'Ingresos',c:'#22c55e'},{k:'fijo',l:'Gastos fijos',c:'#f59e0b'},{k:'tdc',l:'Tarjetas de crédito',c:'#3b82f6'}];
-    tipos.forEach(t=>{
-      const cs=conceptos.filter(c=>c.tipo===t.k);
-      if(!cs.length)return;
-      html+=`<tr><td colspan="${mesFiltrados.length+1}" style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 0 4px;position:sticky;left:0;background:var(--bg);font-family:'Helvetica Neue',sans-serif">${t.l}</td></tr>`;
+    const grupos=[{k:'ingreso',l:'Ingresos',c:'var(--success,#16a34a)'},{k:'fijo',l:'Gastos fijos',c:'#f59e0b'},{k:'tdc',l:'Tarjetas de crédito',c:'var(--acc)'}];
+    grupos.forEach(g=>{
+      const cs=conceptos.filter(c=>c.tipo===g.k);if(!cs.length)return;
+      html+=sep(g.l);
       cs.forEach(c=>{
-        const keys=mesFiltrados.map(m=>m.key);
-        const ultKey=keys.slice().reverse().find(k=>c.vals[k]);
-        html+=`<tr><td style="position:sticky;left:0;background:var(--bg);padding:7px 8px;border-bottom:0.5px solid var(--border);font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${t.c};margin-right:5px;vertical-align:middle"></span>${escapeHtml(c.label)}</td>`;
-        mesFiltrados.forEach(m=>{
+        html+=`<tr><td style="${rowStyle('var(--bg)')};border-bottom:0.5px solid var(--border)">${dot(g.c)}${escapeHtml(c.label)}</td>`;
+        ms.forEach(m=>{
           const v=c.vals[m.key]||0;
-          const esUlt=m.key===ultKey&&c.tipo==='tdc'&&v!==0;
-          html+=`<td style="padding:7px 12px;border-bottom:0.5px solid var(--border);text-align:right;${clsV(v)};font-family:'Helvetica Neue',sans-serif">${v!==0?fmtV(v)+'':'—'}${esUlt?' ✓':''}</td>`;
+          const esUlt=c.fin&&m.key===c.fin&&v!==0;
+          html+=`<td style="${valStyle}">${fmt(v)}${esUlt?' <span style=\"color:var(--muted);font-size:10px\">✓</span>':''}</td>`;
         });
         html+=`</tr>`;
       });
     });
   }else{
-    const tipos=[{k:'ingreso',l:'Ingresos',c:'#22c55e'},{k:'fijo',l:'Fijos',c:'#f59e0b'},{k:'tdc',l:'TDC',c:'#3b82f6'}];
-    tipos.forEach(t=>{
-      const cs=conceptos.filter(c=>c.tipo===t.k);
-      if(!cs.length)return;
-      html+=`<tr><td style="position:sticky;left:0;background:var(--bg);padding:7px 8px;border-bottom:0.5px solid var(--border);font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${t.c};margin-right:5px;vertical-align:middle"></span>${t.l}</td>`;
-      mesFiltrados.forEach(m=>{
+    const grupos=[{k:'ingreso',l:'Ingresos',c:'var(--success,#16a34a)'},{k:'fijo',l:'Fijos',c:'#f59e0b'},{k:'tdc',l:'Tarjetas',c:'var(--acc)'}];
+    grupos.forEach(g=>{
+      const cs=conceptos.filter(c=>c.tipo===g.k);if(!cs.length)return;
+      html+=`<tr><td style="${rowStyle('var(--bg)')};border-bottom:0.5px solid var(--border)">${dot(g.c)}${g.l}</td>`;
+      ms.forEach(m=>{
         const total=cs.reduce((s,c)=>s+(c.vals[m.key]||0),0);
-        html+=`<td style="padding:7px 12px;border-bottom:0.5px solid var(--border);text-align:right;${clsV(total)};font-family:'Helvetica Neue',sans-serif">${total!==0?fmtV(total):'—'}</td>`;
+        html+=`<td style="${valStyle}">${fmt(total)}</td>`;
       });
       html+=`</tr>`;
     });
   }
 
-  // Fila neto
-  html+=`<tr><td style="position:sticky;left:0;background:var(--bg);padding:8px 8px;font-size:12px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif;border-top:1px solid var(--border)">Neto</td>`;
-  mesFiltrados.forEach(m=>{
+  // Neto
+  html+=`<tr><td style="${rowStyle('var(--card)')};border-top:1px solid var(--border);font-weight:600;color:var(--text)">Neto</td>`;
+  ms.forEach(m=>{
     const neto=conceptos.reduce((s,c)=>s+(c.vals[m.key]||0),0);
-    html+=`<td style="padding:8px 12px;text-align:right;font-weight:600;border-top:1px solid var(--border);${clsV(neto)};font-family:'Helvetica Neue',sans-serif">${fmtV(neto)}</td>`;
+    const a=Math.abs(Math.round(neto));
+    const s=a>=10000?'$'+(a/1000).toFixed(0)+'k':'$'+a.toLocaleString('es-MX');
+    html+=`<td style="${valStyle.replace('border-bottom:0.5px solid var(--border)','border-top:1px solid var(--border)')};font-weight:600;color:${neto>=0?'var(--success,#16a34a)':'var(--danger,#dc2626)'}">${(neto>0?'+':'-')+s}</td>`;
   });
   html+=`</tr>`;
   document.getElementById('proj-tbody').innerHTML=html;
@@ -4056,31 +4106,40 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{upda
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <!-- ═══ OVERLAY PROYECCIÓN FINANCIERA — PROJ_ prefix, zero impact on existing code ═══ -->
-  <div id="proj-overlay" style="display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0px)">
-    <!-- Header -->
-    <div style="position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:14px 16px 10px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <button onclick="PROJ_cerrar()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0 8px 0 0">←</button>
-        <div style="font-size:15px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif">Proyección futura</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif" id="proj-hasta"></div>
+  <div id="proj-overlay" style="display:none;position:fixed;inset:0;z-index:1300;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+
+    <!-- Header sticky -->
+    <div style="position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:0.5px solid var(--border);padding:12px 16px 10px;padding-top:calc(12px + env(safe-area-inset-top,0px))">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="PROJ_cerrar()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);padding:0;line-height:1;flex-shrink:0">←</button>
+        <span style="font-size:15px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif;flex:1">Proyección futura</span>
+        <!-- Botón girar -->
+        <button id="proj-btn-girar" onclick="PROJ_toggleGiro()" style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:0.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted);font-size:11px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;flex-shrink:0">
+          ⟳ <span id="proj-giro-lbl">Girar</span>
+        </button>
+        <!-- Botón detalle/resumen -->
+        <button id="proj-btn-expand" onclick="PROJ_toggleExpand()" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted);font-size:11px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;flex-shrink:0">Detalle</button>
       </div>
       <!-- Filtros Q -->
       <div style="display:flex;gap:6px;margin-top:10px;overflow-x:auto;padding-bottom:2px" id="proj-filtros"></div>
     </div>
 
-    <!-- Controles vista -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px 6px">
-      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif" id="proj-subtitulo"></div>
-      <button id="proj-btn-expand" onclick="PROJ_toggleExpand()" style="font-size:11px;padding:5px 10px;border:0.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);cursor:pointer;font-family:'Helvetica Neue',sans-serif">Expandida</button>
+    <!-- Nota horizonte -->
+    <div style="padding:8px 16px 4px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif" id="proj-hasta"></span>
+      <span style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">desliza →</span>
     </div>
 
     <!-- Tabla -->
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 16px 20px">
-      <table id="proj-tabla" style="border-collapse:collapse;font-size:12px;width:max-content;min-width:calc(100vw - 32px)">
-        <thead id="proj-thead"></thead>
-        <tbody id="proj-tbody"></tbody>
-      </table>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 16px 40px;margin-top:4px">
+      <div style="border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+        <table id="proj-tabla" style="border-collapse:collapse;width:max-content;min-width:100%">
+          <thead id="proj-thead"></thead>
+          <tbody id="proj-tbody"></tbody>
+        </table>
+      </div>
     </div>
+
   </div>
   <!-- ═══ FIN OVERLAY PROYECCIÓN ═══ -->
 
