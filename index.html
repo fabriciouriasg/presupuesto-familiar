@@ -583,7 +583,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
     <input type="text" id="drawer-note" class="form-input" placeholder="Nota (opcional)" style="margin-bottom:12px;font-size:14px">
     <button class="btn-submit" id="drawer-submit" onclick="submitDrawer()">Registrar gasto</button>
   </div>
-  <div id="drawer-overlay" onclick="closeDrawer()" style="display:none;position:fixed;inset:0;background:rgba(20,8,2,0.5);z-index:299"></div>
+  <div id="drawer-overlay" onclick="if(!document.querySelector('.modal-overlay[style*=\'block\'],.modal-overlay.open'))closeDrawer()" style="display:none;position:fixed;inset:0;background:rgba(20,8,2,0.5);z-index:299"></div>
 </div>
 
 <!-- ══ SETTINGS ══ -->
@@ -756,7 +756,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 54';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 55';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -826,13 +826,35 @@ const fmonth=d=>`${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const getMesNombre=()=>MONTHS[new Date().getMonth()]+' '+new Date().getFullYear();
 const getCats=()=>{
+  const normalizarCat=(c,def)=>({
+    id:c.id||def?.id||'otro',
+    l:c.l||def?.l||c.id||'Otro',
+    e:c.e||def?.e||'❓',
+    b:c.b??def?.b??0,
+    active:c.active!==false
+  });
   if(esHogar(currentAcct)){
     // Casa puede tener categorías personalizadas en casa_config
-    const cc=gls('casa_config');
-    const cats=cc?.categorias?.filter(c=>c.active!==false);
-    return(cats&&cats.length)?cats:DEFAULT_CATS;
+    try{
+      const cc=gls('casa_config');
+      const raw=cc?.categorias?.filter(c=>c.active!==false);
+      if(raw&&raw.length){
+        return raw.map(c=>{
+          const def=DEFAULT_CATS.find(d=>d.id===c.id);
+          return normalizarCat(c,def);
+        });
+      }
+    }catch(e){}
+    return DEFAULT_CATS;
   }
-  return userConfig?.categorias?.filter(c=>c.active!==false)||DEFAULT_CATS;
+  try{
+    const raw=userConfig?.categorias?.filter(c=>c.active!==false);
+    if(raw&&raw.length)return raw.map(c=>{
+      const def=DEFAULT_CATS.find(d=>d.id===c.id);
+      return normalizarCat(c,def);
+    });
+  }catch(e){}
+  return DEFAULT_CATS;
 };
 const getCat=id=>getCats().find(c=>c.id===id)||{e:'❓',l:id,b:0,_huerfana:true};
 // Escapa texto de usuario antes de insertarlo en HTML — previene XSS almacenado
