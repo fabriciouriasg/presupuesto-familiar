@@ -756,7 +756,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 53';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 54';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -825,7 +825,15 @@ const fday=d=>`${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].substr(
 const fmonth=d=>`${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const getMesNombre=()=>MONTHS[new Date().getMonth()]+' '+new Date().getFullYear();
-const getCats=()=>esHogar(currentAcct)?DEFAULT_CATS:(userConfig?.categorias?.filter(c=>c.active!==false)||DEFAULT_CATS);
+const getCats=()=>{
+  if(esHogar(currentAcct)){
+    // Casa puede tener categorías personalizadas en casa_config
+    const cc=gls('casa_config');
+    const cats=cc?.categorias?.filter(c=>c.active!==false);
+    return(cats&&cats.length)?cats:DEFAULT_CATS;
+  }
+  return userConfig?.categorias?.filter(c=>c.active!==false)||DEFAULT_CATS;
+};
 const getCat=id=>getCats().find(c=>c.id===id)||{e:'❓',l:id,b:0,_huerfana:true};
 // Escapa texto de usuario antes de insertarlo en HTML — previene XSS almacenado
 // (notas, descripciones, nombres) al construir vistas con innerHTML.
@@ -2380,7 +2388,8 @@ function renderGrupoTicket(gr,encoded){
   gr.lineas.forEach(l=>{
     const lcat=getCat(l.categoria);
     const eData={rowIndex:l.rowIndex,fecha:l.fecha,nota:l.nota||'',monto:l.monto,pago:l.pago||'',categoria:l.categoria,quien:l.quien||''};
-    const encoded=l.rowIndex?btoa(unescape(encodeURIComponent(JSON.stringify(eData)))):'';
+    let encoded='';
+    if(l.rowIndex){try{encoded=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));}catch(e){encoded='';}};
     html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:0.5px solid var(--border)">';
     html+='<span style="font-size:14px;flex-shrink:0">'+lcat.e+'</span>';
     html+='<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(l.nota||l.descripcion||'')+'</div>';
@@ -4398,7 +4407,7 @@ if('serviceWorker' in navigator){
   </div>
 
   <!-- MODAL GENÉRICO — reusado por saldo, fuentes de ingreso, tarjetas -->
-  <div id="modal-generico" style="display:none;position:fixed;inset:0;z-index:1150;background:rgba(42,24,16,0.55);backdrop-filter:blur(6px)">
+  <div id="modal-generico" style="display:none;position:fixed;inset:0;z-index:1150;background:rgba(42,24,16,0.55);backdrop-filter:blur(6px)" onclick="if(event.target===this)cerrarModalGenerico()">
     <div style="position:absolute;bottom:0;left:0;right:0;max-height:85vh;background:var(--bg);border-radius:18px 18px 0 0;overflow-y:auto;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))">
       <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
       <div id="modal-generico-body"></div>
