@@ -756,7 +756,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 60';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 61';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -3939,6 +3939,9 @@ function abrirEscaner(destino){
   if(_escaneando)return;
   if(!isOnline){ mostrarEstadoTicket(destino,'error','Necesitas conexión para leer el ticket'); return; }
   _escaneoDestino = destino;
+  // Android puede reiniciar la PWA al abrir la cámara. Guardamos a dónde va la
+  // foto para que, si eso pasa, la app sepa qué hacer con ella al volver.
+  try{sls('scan_destino',destino);}catch(e){}
   // Elección explícita: Android suele saltarse el menú nativo e ir directo a galería
   document.getElementById('modal-ticket-origen').classList.add('open');
 }
@@ -4024,8 +4027,21 @@ function setBotonEscaneo(destino,visible,texto){
 }
 
 async function procesarTicket(file){
-  const destino = _escaneoDestino;
-  if(!destino||!file)return;
+  // Si Android reinició la app mientras la cámara estaba abierta, _escaneoDestino
+  // se perdió. Lo recuperamos de localStorage para no descartar la foto en silencio.
+  let destino = _escaneoDestino;
+  if(!destino){
+    destino = gls('scan_destino');
+    if(destino){
+      _escaneoDestino = destino;
+      // El drawer también se cerró con el reinicio: reabrirlo para tener dónde mostrar el resultado
+      if(destino==='drawer'&&document.getElementById('inline-drawer')?.style.display!=='block'){
+        try{openDrawer();}catch(e){}
+      }
+    }
+  }
+  if(!file)return;
+  if(!destino){showToast('Vuelve a tocar Escanear ticket');return;}
   _escaneando = true;
   _escaneoInicio = Date.now();
   setBotonEscaneo(destino,false);
@@ -4051,6 +4067,7 @@ async function procesarTicket(file){
   }finally{
     _escaneando = false;
     _escaneoInicio = 0;
+    try{localStorage.removeItem(sk('scan_destino'));}catch(e){}
     setBotonEscaneo(destino,true,'📷 Escanear otro ticket');
   }
 }
