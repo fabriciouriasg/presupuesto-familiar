@@ -756,7 +756,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 47';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 48';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -947,13 +947,15 @@ function _saveAcctToken(email,token,expiresIn){
   window.gAccessTokenOwner=email||currentAcct||'admin';
 }
 async function getAccessToken(){
-  // Si el token vigente es del usuario correcto, reutilizarlo
+  // Para cuentas Casa, el token del admin (Fabricio/Vanessa) siempre es válido
+  // ya que Casa es administrada por ellos. Solo verificar owner para cuentas personales.
   const expectedOwner=currentAcct||currentUser?.email||'admin';
   const tokenOk=window.gAccessToken&&window.gTokenExpiry&&Date.now()<window.gTokenExpiry-60000;
-  const ownerOk=!window.gAccessTokenOwner||window.gAccessTokenOwner===expectedOwner||esHogar(expectedOwner);
+  const esCasa=esHogar(expectedOwner);
+  const ownerOk=esCasa||!window.gAccessTokenOwner||window.gAccessTokenOwner===expectedOwner;
   if(tokenOk&&ownerOk)return window.gAccessToken;
   // Token vencido o de otro usuario — pedir uno nuevo con hint del email correcto
-  return await requestSheetsAccess(esHogar(expectedOwner)?null:expectedOwner);
+  return await requestSheetsAccess(esCasa?null:expectedOwner);
 }
 function handleGoogleResponse(response){
   const payload=parseJwt(response.credential);
