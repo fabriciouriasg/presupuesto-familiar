@@ -837,7 +837,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 66-DIAG';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 67';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -3486,57 +3486,101 @@ function buildCatSummary(catTotals){
   </div>`;
 }
 
-function buildCatDropdowns(gastos){
-  // Separar gastos de ticket agrupados de gastos individuales
-  const gastosAgrupados=agruparGastosTicket(gastos);
-  const grupos=gastosAgrupados.filter(g=>g._esGrupo);
-  const sueltos=gastosAgrupados.filter(g=>!g._esGrupo);
-
-  const byCat={};
-  sueltos.forEach(g=>{if(!byCat[g.categoria])byCat[g.categoria]=[];byCat[g.categoria].push(g);});
-  const catEntries=Object.entries(byCat).map(([catId,gs])=>({catId,gs,total:gs.reduce((s,g)=>s+g.monto,0)})).sort((a,b)=>b.total-a.total);
-  const suffix=Math.random().toString(36).substr(2,5);
-
-  // Renderizar grupos de ticket primero (si los hay)
-  let gruposHtml='';
-  if(grupos.length){
-    gruposHtml=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:8px">Tickets escaneados</div>`;
-    gruposHtml+=grupos.map(gr=>renderGrupoTicket(gr,'')).join('');
-    if(catEntries.length)gruposHtml+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin:10px 0 8px">Otros gastos</div>`;
-  }
-
-  return `<div style="padding:10px 14px 14px">
-    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:8px">${grupos.length?'':'Detalle de gastos'}</div>
-    ${gruposHtml}
-    ${catEntries.map(({catId,gs,total})=>{
-      const c=getCat(catId);const dropId=`drop-${suffix}-${catId}`;
-      return `<div style="margin-bottom:6px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-        <div onclick="toggleCatDrop('${dropId}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--surface)">
-          <span style="font-size:16px">${c.e}</span>
-          <span style="flex:1;font-size:12px;font-weight:600;font-family:'Helvetica Neue',sans-serif;color:var(--text)">${escapeHtml(c.l)}</span>
-          <span style="font-size:12px;font-weight:700;font-family:'Helvetica Neue',sans-serif;color:var(--acc)">${fmxn(total)}</span>
-          <span style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${gs.length} gasto${gs.length>1?'s':''}</span>
-          <span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s">›</span>
-        </div>
-        <div id="${dropId}" style="display:none;background:var(--card)">
-          ${gs.sort((a,b)=>b.fecha>a.fecha?1:-1).map(e=>{
-            const eData={rowIndex:e.rowIndex,fecha:e.fecha,nota:e.nota||'',monto:e.monto,pago:e.pago||'',categoria:e.categoria,quien:e.quien||''};
-            const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));
-            return `<div style="display:flex;align-items:center;gap:8px;padding:9px 12px 9px 16px;border-top:1px solid var(--border)">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;color:var(--text);font-family:'Helvetica Neue',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(e.nota||e.categoria)}</div>
-                <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:1px">${e.fecha}${e.pago?' · '+escapeHtml(e.pago):''}${e.quien&&esHogar(currentAcct)?' · 👤 '+escapeHtml(e.quien):''}${e.origen==='ticket'?' · 📷':e.origen==='ticket_editado'?' · 📷✏️':''}</div>
-              </div>
-              <div style="font-size:13px;font-weight:700;color:var(--acc);font-family:'Helvetica Neue',sans-serif;flex-shrink:0">${fmxn(e.monto)}</div>
-              <button onclick="abrirEditGastoHistorial('${encoded}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0">✏️</button>
-              <button onclick="confirmarEliminarGastoHistorial(${e.rowIndex},'${escapeHtml(e.nota||e.categoria).replace(/'/g,'')}')" style="background:rgba(161,58,30,0.08);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0">🗑️</button>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+function makeBtnEdit(encoded){
+  if(!encoded)return '';
+  const b=document.createElement('button');
+  b.style.cssText='background:rgba(183,152,88,0.12);border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;flex-shrink:0';
+  b.textContent='✏️';
+  b.onclick=()=>abrirEditGastoHistorial(encoded);
+  return b.outerHTML;
 }
+
+function renderGrupoTicketInline(gr,dropId){
+  const tktId='tkt_'+gr._esGrupoId+'_'+dropId;
+  const wrap=document.createElement('div');
+  wrap.style.cssText='border-top:0.5px solid var(--border)';
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:var(--card)';
+  hdr.onclick=()=>toggleExpandTicket(tktId);
+  const ico=document.createElement('span');
+  ico.style.cssText='font-size:16px;background:var(--bg);border-radius:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0';
+  ico.textContent='📷';
+  const inf=document.createElement('div');
+  inf.style.cssText='flex:1;min-width:0';
+  const n=document.createElement('div');n.style.cssText='font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';n.textContent=gr.comercio;
+  const m=document.createElement('div');m.style.cssText='font-size:10px;color:var(--muted)';m.textContent=gr.fecha+' · '+gr.lineas.length+' artículos';
+  inf.append(n,m);
+  const a=document.createElement('div');a.style.cssText='font-size:13px;font-weight:600;color:var(--acc);flex-shrink:0';a.textContent=fmxn(gr.totalGrupo);
+  const ar=document.createElement('span');ar.style.cssText='color:var(--muted);font-size:12px;flex-shrink:0';ar.textContent='›';
+  hdr.append(ico,inf,a,ar);
+  const body=document.createElement('div');body.id=tktId;body.style.display='none';
+  gr.lineas.forEach(l=>{
+    const lcat=getCat(l.categoria);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 14px 8px 50px;border-top:0.5px solid var(--border);background:var(--surface)';
+    const le=document.createElement('span');le.style.fontSize='14px';le.textContent=lcat.e;
+    const li=document.createElement('div');li.style.cssText='flex:1;min-width:0';
+    const ld=document.createElement('div');ld.style.cssText='font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';ld.textContent=l.nota||l.descripcion||'';
+    const lm=document.createElement('div');lm.style.cssText='font-size:10px;color:var(--muted)';lm.textContent=lcat.l;
+    li.append(ld,lm);
+    const la=document.createElement('div');la.style.cssText='font-size:12px;font-weight:600;color:var(--acc);flex-shrink:0';la.textContent=fmxn(l.monto);
+    row.append(le,li,la);
+    if(l.rowIndex){try{const eData={rowIndex:l.rowIndex,fecha:l.fecha,nota:l.nota||'',monto:l.monto,pago:l.pago||'',categoria:l.categoria,quien:l.quien||''};const enc=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));const btn=document.createElement('button');btn.style.cssText='background:rgba(183,152,88,0.12);border:none;border-radius:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;flex-shrink:0';btn.textContent='✏️';btn.onclick=()=>abrirEditGastoHistorial(enc);row.appendChild(btn);}catch(e){}}
+    body.appendChild(row);
+  });
+  wrap.append(hdr,body);
+  return wrap.outerHTML;
+}
+
+function buildCatDropdowns(gastos){
+  // Vista unificada: tickets integrados en su categoría, cronológico inverso, barra de presupuesto.
+  const suffix=Math.random().toString(36).substr(2,5);
+  const byCat={};
+  gastos.forEach(g=>{
+    const cat=g.grupoId?g.catPrincipal||g.categoria:g.categoria;
+    if(!byCat[cat])byCat[cat]=[];
+    if(g.grupoId){
+      const ya=byCat[cat].find(x=>x._esGrupoId===g.grupoId);
+      if(!ya){
+        const lin=gastos.filter(x=>x.grupoId===g.grupoId);
+        byCat[cat].push({_esGrupo:true,_esGrupoId:g.grupoId,comercio:g.comercio||'Ticket',fecha:g.fecha,catPrincipal:g.catPrincipal||g.categoria,totalGrupo:lin.reduce((s,x)=>s+x.monto,0),lineas:lin,quien:g.quien});
+      }
+    }else{byCat[cat].push(g);}
+  });
+  const catEntries=Object.entries(byCat).map(([catId,items])=>({catId,items,total:items.reduce((s,i)=>s+(i._esGrupo?i.totalGrupo:i.monto),0)})).sort((a,b)=>b.total-a.total);
+  let html='<div style="padding:6px 14px 14px">';
+  catEntries.forEach(({catId,items,total})=>{
+    const cat=getCat(catId);
+    const dropId='drop-'+suffix+'-'+catId;
+    const lim=budgets&&budgets[catId]?budgets[catId]:0;
+    const pct=lim>0?Math.min(Math.round(total/lim*100),100):0;
+    const over=lim>0&&total>lim;
+    const color=over?'var(--danger,#dc2626)':'var(--acc)';
+    const itemsOrd=[...items].sort((a,b)=>(b.fecha>a.fecha?1:-1));
+    html+=`<div style="margin-bottom:6px;border:0.5px solid var(--border);border-radius:12px;overflow:hidden">`;
+    html+=`<div onclick="toggleCatDrop('${dropId}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer">`;
+    html+=`<span style="font-size:18px">${cat.e}</span>`;
+    html+=`<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(cat.l)}</span><span style="font-size:13px;font-weight:600;color:${color}">${fmxn(total)}</span></div>`;
+    if(lim>0){html+=`<div style="display:flex;justify-content:space-between;margin-top:2px"><span style="font-size:10px;color:var(--muted)">Lím: ${fmxn(lim)}</span><span style="font-size:10px;color:${color}">Rem: ${fmxn(lim-total)}</span></div><div style="height:3px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div></div>`;}
+    else{html+=`<div style="font-size:10px;color:var(--muted);margin-top:2px">${items.length} gasto${items.length>1?'s':''}</div>`;}
+    html+=`</div><span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s">›</span></div>`;
+    html+=`<div id="${dropId}" style="display:none;background:var(--card)">`;
+    itemsOrd.forEach(item=>{
+      if(item._esGrupo){html+=renderGrupoTicketInline(item,dropId);return;}
+      const eData={rowIndex:item.rowIndex,fecha:item.fecha,nota:item.nota||'',monto:item.monto,pago:item.pago||'',categoria:item.categoria,quien:item.quien||''};
+      let enc='';try{enc=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));}catch(e){}
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:0.5px solid var(--border)">`;
+      html+=`<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.nota||item.categoria)}</div><div style="font-size:10px;color:var(--muted);margin-top:1px">${item.fecha}${item.pago?' · '+escapeHtml(item.pago):''}${item.quien&&esHogar(currentAcct)?' · 👤 '+escapeHtml(item.quien):''}${item.origen==='ticket'?' · 📷':item.origen==='ticket_editado'?' · 📷✏️':''}</div></div>`;
+      html+=`<div style="font-size:13px;font-weight:700;color:var(--acc);flex-shrink:0">${fmxn(item.monto)}</div>`;
+      html+=makeBtnEdit(enc);
+      html+='</div>';
+    });
+    html+='</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
 
 // ── Editar gasto desde historial o gastos recientes ──
 let _editGastoActual=null;
@@ -3566,12 +3610,13 @@ function abrirEditGastoHistorial(encoded){
   // Quién pagó
   renderQuienSelector('edit-quien-grid',gasto.quien||currentUser?.name);
 
-  document.getElementById('screen-edit-gasto').style.display='block';
+  document.getElementById('screen-edit-gasto').style.display='flex';
   document.getElementById('edit-guardar-btn').disabled=false;
   document.getElementById('edit-guardar-btn').textContent='Guardar cambios';
 }
 function cerrarEditGasto(){
-  document.getElementById('screen-edit-gasto').style.display='none';
+  const el=document.getElementById('screen-edit-gasto');
+  if(el)el.style.display='none';
   _editGastoActual=null;
 }
 function confirmarEliminarDesdeEdit(){
@@ -4726,51 +4771,35 @@ function mostrarAvisoNuevaVersion(){
   <!-- ═══ FIN OVERLAY PROYECCIÓN ═══ -->
 
   <!-- PANTALLA DE EDICIÓN COMPLETA DE GASTO -->
-  <div id="screen-edit-gasto" style="display:none;position:fixed;inset:0;z-index:1200;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
-    <div style="position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:0.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;padding-top:calc(12px + env(safe-area-inset-top,0px))">
-      <button onclick="cerrarEditGasto()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);padding:0;line-height:1;flex-shrink:0">←</button>
-      <span style="font-size:15px;font-weight:600;color:var(--text);font-family:'Helvetica Neue',sans-serif;flex:1">Editar gasto</span>
-      <button onclick="confirmarEliminarDesdeEdit()" style="background:none;border:0.5px solid var(--danger,#dc2626);border-radius:10px;padding:6px 12px;font-size:12px;color:var(--danger,#dc2626);font-family:'Helvetica Neue',sans-serif;cursor:pointer">Eliminar</button>
-    </div>
-    <div style="padding:16px;display:flex;flex-direction:column;gap:14px;padding-bottom:calc(30px + env(safe-area-inset-bottom,0px))">
-      <!-- Monto -->
-      <div>
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Monto</div>
-        <input type="number" id="edit-monto" class="form-input amount-input" placeholder="0.00" inputmode="decimal" style="font-size:24px;font-weight:500;padding:12px">
+  <!-- EDICIÓN — sheet desde abajo, compacto -->
+  <div id="screen-edit-gasto" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(42,24,16,0.55);backdrop-filter:blur(4px);align-items:flex-end" onclick="if(event.target===this)cerrarEditGasto()">
+    <div style="background:var(--bg);border-radius:16px 16px 0 0;padding:16px;width:100%;max-height:92vh;overflow-y:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span style="font-size:15px;font-weight:500;color:var(--text)">Editar gasto</span>
+        <button onclick="confirmarEliminarDesdeEdit()" style="background:none;border:0.5px solid var(--danger,#dc2626);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--danger,#dc2626);cursor:pointer">🗑️ Eliminar</button>
       </div>
-      <!-- Fecha + Quién -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Fecha</div>
-          <input type="date" id="edit-fecha" class="form-input">
+      <div style="background:var(--card);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:baseline;gap:6px;border:0.5px solid var(--border)">
+        <span style="font-size:18px;color:var(--muted)">$</span>
+        <input type="number" id="edit-monto" inputmode="decimal" placeholder="0.00" style="font-size:26px;font-weight:500;color:var(--text);border:none;background:none;outline:none;width:100%">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Fecha</div>
+          <input type="date" id="edit-fecha" style="font-size:13px;color:var(--text);border:none;background:none;outline:none;width:100%">
         </div>
-        <div id="edit-quien-wrap">
-          <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Quién pagó</div>
-          <div id="edit-quien-grid" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Quién pagó</div>
+          <div id="edit-quien-grid" style="display:flex;gap:5px;flex-wrap:wrap"></div>
         </div>
       </div>
-      <!-- Categoría -->
-      <div>
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Categoría</div>
-        <div id="edit-cat-grid" class="cat-grid-m"></div>
-      </div>
-      <!-- Método de pago -->
-      <div>
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Método de pago</div>
-        <div id="edit-pago-grid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-      </div>
-      <!-- Descripción -->
-      <div>
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Descripción</div>
-        <input type="text" id="edit-desc" class="form-input" placeholder="¿En qué gastaste?">
-      </div>
-      <!-- Nota -->
-      <div>
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:6px">Nota (opcional)</div>
-        <input type="text" id="edit-nota" class="form-input" placeholder="Detalle adicional">
-      </div>
-      <!-- Guardar -->
-      <button id="edit-guardar-btn" onclick="guardarEditCompleto()" class="btn-submit" style="margin-top:4px">Guardar cambios</button>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Categoría</div>
+      <div id="edit-cat-grid" class="cat-grid-m" style="margin-bottom:10px"></div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Método de pago</div>
+      <div id="edit-pago-grid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <input type="text" id="edit-desc" class="form-input" placeholder="¿En qué gastaste?" style="margin-bottom:12px">
+      <input type="hidden" id="edit-nota">
+      <button id="edit-guardar-btn" onclick="guardarEditCompleto()" class="btn-submit">Guardar</button>
     </div>
   </div>
 
