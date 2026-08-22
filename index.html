@@ -726,12 +726,31 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 <input type="file" id="ticket-file-camera" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px;pointer-events:none">
 <input type="file" id="ticket-file-gallery" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px;pointer-events:none">
 
+<!-- ══ CÁMARA INTERNA (no sale de la app: Android no puede destruirla) ══ -->
+<div id="camara-overlay" style="display:none;position:fixed;inset:0;z-index:2500;background:#000">
+  <video id="camara-video" playsinline autoplay muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video>
+  <div style="position:absolute;top:0;left:0;right:0;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;background:linear-gradient(rgba(0,0,0,0.55),transparent);display:flex;align-items:center;gap:12px">
+    <button onclick="cerrarCamara()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;line-height:1">✕</button>
+    <span style="color:#fff;font-size:13px;font-family:'Helvetica Neue',sans-serif;flex:1">Encuadra el ticket completo</span>
+  </div>
+  <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 16px calc(28px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,0.6));display:flex;align-items:center;justify-content:center;gap:24px">
+    <label for="ticket-file-gallery" onclick="prepararInputTicket('gallery');cerrarCamara()" style="color:#fff;font-size:22px;cursor:pointer;opacity:.85">🖼️</label>
+    <button onclick="tomarFotoCamara()" id="btn-obturador" style="width:68px;height:68px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,0.4);cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.4)"></button>
+    <button onclick="cambiarCamara()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;opacity:.85">🔄</button>
+  </div>
+  <div id="camara-error" style="display:none;position:absolute;inset:0;background:var(--bg);padding:24px;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px">
+    <div style="font-size:14px;color:var(--text);font-family:'Helvetica Neue',sans-serif" id="camara-error-msg"></div>
+    <label for="ticket-file-camera" onclick="prepararInputTicket('camera');cerrarCamara()" style="background:var(--p);color:var(--bg);border-radius:12px;padding:12px 20px;font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">Usar la cámara del sistema</label>
+    <button onclick="cerrarCamara()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:'Helvetica Neue',sans-serif">Cancelar</button>
+  </div>
+</div>
+
 <!-- ══ ELEGIR ORIGEN DE LA FOTO ══ -->
 <div class="modal-overlay" id="modal-ticket-origen" style="align-items:center;justify-content:center;padding:24px">
   <div class="modal-sheet" style="border-radius:20px;padding:22px 20px 20px;max-width:300px;width:100%">
     <div style="font-size:17px;color:var(--p);font-family:'Georgia',serif;margin-bottom:4px;text-align:center">Escanear ticket</div>
     <div style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:18px;text-align:center">¿De dónde tomamos la foto?</div>
-    <label for="ticket-file-camera" onclick="prepararInputTicket('camera')" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:14px;font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;margin-bottom:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box">📸 Tomar foto</label>
+    <button onclick="abrirCamaraInterna()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:14px;font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;margin-bottom:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box">📸 Tomar foto</button>
     <label for="ticket-file-gallery" onclick="prepararInputTicket('gallery')" style="width:100%;background:none;border:1.5px solid var(--border);color:var(--text);border-radius:12px;padding:14px;font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box">🖼️ Elegir de galería</label>
     <button onclick="document.getElementById('modal-ticket-origen').classList.remove('open')" style="width:100%;background:none;border:none;color:var(--muted);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:8px">Cancelar</button>
   </div>
@@ -818,7 +837,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 65-DIAG';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 66-DIAG';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -4009,6 +4028,85 @@ function abrirEscaner(destino){
   document.getElementById('modal-ticket-origen').classList.add('open');
 }
 
+// ═══════════════════════════════════════════════════════════
+// CÁMARA INTERNA — la vista previa vive DENTRO de la app.
+// Motivo: al lanzar el intent de cámara del sistema, Android puede destruir
+// la actividad de la PWA y perder la foto. Con getUserMedia nunca salimos
+// de la app, así que Android no tiene motivo para cerrarla.
+// ═══════════════════════════════════════════════════════════
+let _camStream=null, _camFacing='environment';
+
+async function abrirCamaraInterna(){
+  scanLog('2. Abriendo camara interna');
+  const modalOrigen=document.getElementById('modal-ticket-origen');
+  if(modalOrigen)modalOrigen.classList.remove('open');
+  const ov=document.getElementById('camara-overlay');
+  const err=document.getElementById('camara-error');
+  if(err)err.style.display='none';
+  if(ov)ov.style.display='block';
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
+      throw new Error('Este navegador no permite la cámara integrada');
+    _camStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:_camFacing},width:{ideal:1920},height:{ideal:1440}},
+      audio:false
+    });
+    const v=document.getElementById('camara-video');
+    v.srcObject=_camStream;
+    await v.play().catch(()=>{});
+    scanLog('3. Camara lista','sin salir de la app');
+  }catch(e){
+    scanLog('3. Camara interna fallo',e.message||String(e));
+    mostrarErrorCamara(e.message||'No se pudo abrir la cámara');
+  }
+}
+
+function mostrarErrorCamara(msg){
+  const err=document.getElementById('camara-error');
+  const m=document.getElementById('camara-error-msg');
+  if(m)m.textContent=msg;
+  if(err)err.style.display='flex';
+}
+
+function detenerCamara(){
+  try{
+    if(_camStream){_camStream.getTracks().forEach(t=>t.stop());_camStream=null;}
+    const v=document.getElementById('camara-video');
+    if(v)v.srcObject=null;
+  }catch(e){}
+}
+
+function cerrarCamara(){
+  detenerCamara();
+  const ov=document.getElementById('camara-overlay');
+  if(ov)ov.style.display='none';
+}
+
+async function cambiarCamara(){
+  _camFacing=(_camFacing==='environment')?'user':'environment';
+  detenerCamara();
+  await abrirCamaraInterna();
+}
+
+function tomarFotoCamara(){
+  const v=document.getElementById('camara-video');
+  if(!v||!v.videoWidth){showToast('La cámara aún no está lista');return;}
+  scanLog('4. Foto capturada','dentro de la app');
+  const MAX=1400;
+  let w=v.videoWidth,h=v.videoHeight;
+  if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+  if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+  const cv=document.createElement('canvas');
+  cv.width=w;cv.height=h;
+  cv.getContext('2d').drawImage(v,0,0,w,h);
+  const dataUrl=cv.toDataURL('image/jpeg',0.8);
+  cv.width=1;cv.height=1;
+  const b64=dataUrl.split(',')[1];
+  scanLog('5. Foto lista',Math.round(b64.length/1024)+' KB base64');
+  cerrarCamara();
+  procesarTicketBase64(b64);
+}
+
 // El <label> es quien abre la cámara (de forma nativa, conservando el gesto del
 // usuario). Aquí solo dejamos el input listo y cerramos el modal. NUNCA usar
 // setTimeout + .click(): rompe la activación por gesto y Android descarta la foto.
@@ -4171,6 +4269,43 @@ async function procesarTicket(file){
     scanLog('8. Comprimiendo foto');
     const b64 = await comprimirTicket(file);
     scanLog('9. Foto comprimida',Math.round(b64.length/1024)+' KB base64');
+    return enviarTicketAlBackend(destino,b64);
+  }catch(err){
+    scanLog('EXCEPCION',err.message||String(err));
+    mostrarEstadoTicket(destino,'error',err.message||'Error al procesar la foto');
+    return;
+  }finally{
+    _escaneando=false;
+    _escaneoInicio=0;
+    try{localStorage.removeItem(sk('scan_destino'));}catch(e){}
+    setBotonEscaneo(destino,true,'📷 Escanear otro ticket');
+  }
+}
+
+// La foto de la cámara interna ya viene lista: solo se envía.
+async function procesarTicketBase64(b64){
+  let destino=_escaneoDestino||gls('scan_destino');
+  if(!destino){showToast('Vuelve a tocar Escanear ticket');return;}
+  _escaneando=true;_escaneoInicio=Date.now();
+  setBotonEscaneo(destino,false);
+  mostrarEstadoTicket(destino,'load','Leyendo ticket…');
+  scanLog('6. Enviando al backend','destino='+destino);
+  try{
+    await enviarTicketAlBackend(destino,b64);
+  }catch(err){
+    scanLog('EXCEPCION',err.message||String(err));
+    mostrarEstadoTicket(destino,'error',err.message||'Error al procesar la foto');
+  }finally{
+    _escaneando=false;
+    _escaneoInicio=0;
+    try{localStorage.removeItem(sk('scan_destino'));}catch(e){}
+    setBotonEscaneo(destino,true,'📷 Escanear otro ticket');
+  }
+}
+
+// Envío al backend + manejo de la respuesta, común a ambas rutas.
+async function enviarTicketAlBackend(destino,b64){
+  try{
     const cats = getCats().map(c=>({id:c.id,l:c.l}));
     const res = await postAPI({
       action:'leerTicket', token:TOKEN,
