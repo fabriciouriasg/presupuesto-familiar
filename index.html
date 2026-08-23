@@ -498,6 +498,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
     <div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
       <button id="hv-tab-gastos" onclick="setHistorialVista('gastos')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:var(--card);color:var(--text);font-weight:600">Gastos</button>
       <button id="hv-tab-fijos" onclick="setHistorialVista('fijos')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:transparent;color:var(--muted)">Fijos</button>
+      <button id="hv-tab-tarjetas" onclick="setHistorialVista('tarjetas')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:transparent;color:var(--muted)">Tarjetas</button>
     </div>
 
     <div id="hv-gastos">
@@ -521,6 +522,9 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 
     <div id="hv-fijos" style="display:none">
       <div id="fijos-section"></div>
+    </div>
+    <div id="hv-tarjetas" style="display:none">
+      <div id="tarjetas-section"></div>
     </div>
   </div>
   <!-- TAB METAS -->
@@ -993,7 +997,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 70';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 71';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1344,7 +1348,7 @@ function renderOb2(){return `<div class="ob-title">Tu ingreso mensual</div><inpu
 function obNext2(){const v=parseFloat(document.getElementById('ob-income').value);if(!v||v<=0){showToast('Ingresa un monto válido');return;}obData.ingreso=v;obStep=3;renderOnboarding();}
 function renderOb3(){
   const totalFijos=obData.fijos.reduce((s,f)=>s+(f.monto||0),0);const disp=obData.ingreso-totalFijos;
-  return `<div class="ob-title">Gastos fijos</div><div class="total-card"><div class="tc-row"><span class="tc-label">Ingreso</span><span class="tc-val">${fmxn(obData.ingreso)}</span></div><div class="tc-row"><span class="tc-label">Fijos</span><span class="tc-val neg">− ${fmxn(totalFijos)}</span></div><div class="tc-div"></div><div class="tc-row"><span class="tc-label">Disponible variable</span><span class="tc-val ${disp>=0?'ok':'neg'}">${fmxn(disp)}</span></div></div><div class="chip-grid">${obData.fijos.map((f,i)=>`<div class="chip-big active"><span class="ce">${f.e}</span><span class="cn">${escapeHtml(f.l)}</span><span class="ca">${fmxn(f.monto)}</span><span class="chip-del" onclick="obData.fijos.splice(${i},1);renderOnboarding()">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="abrirCatalogoOnboarding()"><span class="ce">＋</span><span class="cn">Explorar catálogo</span></div></div><button class="ob-btn" onclick="obStep=4;renderOnboarding()">Continuar →</button>`;
+  return `<div class="ob-title">Gastos fijos</div><div class="total-card"><div class="tc-row"><span class="tc-label">Ingreso</span><span class="tc-val">${fmxn(obData.ingreso)}</span></div><div class="tc-row"><span class="tc-label">Fijos</span><span class="tc-val neg">− ${fmxn(totalFijos)}</span></div><div class="tc-div"></div><div class="tc-row"><span class="tc-label">Disponible variable</span><span class="tc-val ${disp>=0?'ok':'neg'}">${fmxn(disp)}</span></div></div><div class="chip-grid">${obData.fijos.map((f,i)=>`<div class="chip-big active" onclick="openFijoModal(${i})"><span class="ce">${f.e}</span><span class="cn">${escapeHtml(f.l)}</span><span class="ca">${fmxn(f.monto)}</span><span class="chip-del" onclick="event.stopPropagation();obData.fijos.splice(${i},1);renderOnboarding()">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="abrirCatalogoOnboarding()"><span class="ce">＋</span><span class="cn">Explorar catálogo</span></div></div><button class="ob-btn" onclick="obStep=4;renderOnboarding()">Continuar →</button>`;
 }
 function abrirCatalogoOnboarding(){_catalogoOnboardingMode=true;abrirCatalogoFijos();}
 function renderOb4(){
@@ -1902,14 +1906,17 @@ function setHistorialVista(v){
   _historialVista=v;
   document.getElementById('hv-gastos').style.display=v==='gastos'?'block':'none';
   document.getElementById('hv-fijos').style.display=v==='fijos'?'block':'none';
-  const tg=document.getElementById('hv-tab-gastos'),tf=document.getElementById('hv-tab-fijos');
-  tg.style.background=v==='gastos'?'var(--card)':'transparent';
-  tg.style.color=v==='gastos'?'var(--text)':'var(--muted)';
-  tg.style.fontWeight=v==='gastos'?'600':'400';
-  tf.style.background=v==='fijos'?'var(--card)':'transparent';
-  tf.style.color=v==='fijos'?'var(--text)':'var(--muted)';
-  tf.style.fontWeight=v==='fijos'?'600':'400';
+  document.getElementById('hv-tarjetas').style.display=v==='tarjetas'?'block':'none';
+  const tabs={gastos:'hv-tab-gastos',fijos:'hv-tab-fijos',tarjetas:'hv-tab-tarjetas'};
+  Object.entries(tabs).forEach(([key,id])=>{
+    const b=document.getElementById(id);if(!b)return;
+    const act=key===v;
+    b.style.background=act?'var(--card)':'transparent';
+    b.style.color=act?'var(--text)':'var(--muted)';
+    b.style.fontWeight=act?'600':'400';
+  });
   if(v==='fijos')renderSeccionFijos();
+  if(v==='tarjetas')renderSeccionTarjetas();
 }
 function toggleComparativa(){
   const cont=document.getElementById('comparativa-container');
@@ -1981,10 +1988,12 @@ function renderCatalogo(){
     items.forEach(cf=>{
       const on=ids.includes(cf.id);
       const fd=on?act.find(f=>(f.id||f.l?.toLowerCase().replace(/\s+/g,'_'))===cf.id):null;
-      const freqOpts=['mensual','bimestral','trimestral','semestral','anual'].map(fr=>'<option value="'+fr+'"'+((fd?.frecuencia||cf.frecuencia)===fr?' selected':'')+'>'+FREQ_LABELS[fr]+'</option>').join('');
+      const freqOpts=['mensual','bimestral','trimestral','semestral','anual','personalizado'].map(fr=>'<option value="'+fr+'"'+((fd?.frecuencia||cf.frecuencia)===fr?' selected':'')+'>'+FREQ_LABELS[fr]+'</option>').join('');
+      const esPersonalizado=(fd?.frecuencia||cf.frecuencia)==='personalizado';
+      const periodoGuardado=fd?.periodoMeses||'';
       h+='<div data-ci data-cn="'+cf.id+' '+cf.l+' '+cf.desc+'" style="background:var(--card);border:1px solid '+(on?'var(--s)':'var(--border)')+';border-radius:10px;padding:12px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px">';
       h+='<div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">'+cf.l+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:1px">'+cf.desc+'</div>';
-      if(on)h+='<div style="display:flex;align-items:center;gap:6px;margin-top:8px"><input type="number" value="'+(fd?.monto||'')+'" placeholder="$0" data-fm="'+cf.id+'" onchange="updateCatMonto(this)" style="width:85px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--text);text-align:right" inputmode="decimal"><select data-ff="'+cf.id+'" onchange="updateCatFreq(this)" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:5px 6px;font-size:11px;color:var(--text)">'+freqOpts+'</select></div>';
+      if(on)h+='<div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap"><input type="number" value="'+(fd?.monto||'')+'" placeholder="$0" data-fm="'+cf.id+'" onchange="updateCatMonto(this)" style="width:85px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--text);text-align:right" inputmode="decimal"><select data-ff="'+cf.id+'" onchange="updateCatFreq(this)" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:5px 6px;font-size:11px;color:var(--text)">'+freqOpts+'</select><input type="number" value="'+periodoGuardado+'" placeholder="N meses" data-fp="'+cf.id+'" onchange="updateCatPeriodo(this)" style="width:72px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--text);text-align:right;display:'+(esPersonalizado?'block':'none')+'" inputmode="numeric"></div>';
       h+='</div>';
       h+='<div onclick="toggleCatFijo(\x27'+cf.id+'\x27)" style="width:42px;height:24px;flex-shrink:0;cursor:pointer;position:relative;margin-top:2px"><div style="position:absolute;inset:0;border-radius:12px;background:'+(on?'var(--s)':'rgba(84,41,22,0.12)')+';transition:background .2s"></div><div style="position:absolute;top:3px;left:'+(on?'21':'3')+'px;width:18px;height:18px;border-radius:50%;background:var(--card);transition:left .2s"></div></div>';
       h+='</div>';
@@ -2021,7 +2030,28 @@ function duplicarFijoCatalogo(catId){
 
 function toggleCatFijo(id){const data=getFijosStore();if(!data.fijos)data.fijos=[];const idx=data.fijos.findIndex(f=>(f.id||f.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(idx>=0){data.fijos.splice(idx,1);}else{const cf=CATALOGO_FIJOS.find(x=>x.id===id);if(!cf)return;data.fijos.push({id:cf.id,l:cf.l,e:cf.e,monto:0,categoria:'',frecuencia:cf.frecuencia,diaMes:1,variable:cf.variable,grupo:cf.grupo});}persistFijosStore(data);renderCatalogo();}
 function updateCatMonto(inp){const id=inp.getAttribute('data-fm');const data=getFijosStore();const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.monto=parseFloat(inp.value)||0;persistFijosStore(data);}}
-function updateCatFreq(sel){const id=sel.getAttribute('data-ff');const data=getFijosStore();const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);if(f){f.frecuencia=sel.value;persistFijosStore(data);}}
+function updateCatFreq(sel){
+  const id=sel.getAttribute('data-ff');
+  const data=getFijosStore();
+  const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);
+  if(f){
+    f.frecuencia=sel.value;
+    if(sel.value!=='personalizado')f.periodoMeses=PERIODO_MESES[sel.value]||1;
+    persistFijosStore(data);
+  }
+  // Mostrar/ocultar campo N meses
+  const wrap=sel.parentElement;
+  if(wrap){
+    const periodoInp=wrap.querySelector('[data-fp="'+id+'"]');
+    if(periodoInp)periodoInp.style.display=sel.value==='personalizado'?'block':'none';
+  }
+}
+function updateCatPeriodo(inp){
+  const id=inp.getAttribute('data-fp');
+  const data=getFijosStore();
+  const f=data.fijos?.find(x=>(x.id||x.l?.toLowerCase().replace(/\s+/g,'_'))===id);
+  if(f){f.periodoMeses=parseInt(inp.value)||1;persistFijosStore(data);}
+}
 function filtrarCatalogo(){const q=(document.getElementById('catalogo-search')?.value||'').toLowerCase();document.querySelectorAll('[data-ci]').forEach(el=>{el.style.display=(el.getAttribute('data-cn')||'').toLowerCase().includes(q)?'':'none';});document.querySelectorAll('[data-gc]').forEach(g=>{let vis=false,n=g.nextElementSibling;while(n&&!n.hasAttribute('data-gc')){if(n.hasAttribute('data-ci')&&n.style.display!=='none')vis=true;n=n.nextElementSibling;}g.style.display=vis?'':'none';});}
 // ═══ ¿ME LO PUEDO COMPRAR? ═══
 function abrirEvaluadorCompra(){document.getElementById('comprar-que').value='';document.getElementById('comprar-precio').value='';document.getElementById('comprar-msi').value='no';document.getElementById('comprar-meses').value='1';document.getElementById('comprar-resultado').innerHTML='';document.getElementById('modal-comprar').classList.add('open');}
@@ -2071,44 +2101,21 @@ function fuenteEstaCubierta(fuente){
 }
 
 // ── Tarjetas de crédito ──
-function tarjetaMovsKey(){return `pb_tarjeta_movs_${currentAcct}`;}
-function getTarjetaMovimientos(){return gls(tarjetaMovsKey())||[];}
-function calcularFechaPagoCuota(tarjeta,fechaCompra,numeroCuota){
-  // Determina en qué fecha de pago cae la cuota N, según corte/pago de la tarjeta.
-  const fc=new Date(fechaCompra+'T12:00:00');
-  let mesBase=fc.getMonth(),anioBase=fc.getFullYear();
-  // Si la compra fue después del corte de ese mes, la primera cuota cae hasta el pago del mes siguiente.
-  if(fc.getDate()>tarjeta.diaCorte)mesBase++;
-  const mesCuota=mesBase+(numeroCuota-1);
-  const fechaPago=new Date(anioBase,mesCuota,tarjeta.diaPago);
-  return fechaPago.getFullYear()+'-'+String(fechaPago.getMonth()+1).padStart(2,'0')+'-'+String(fechaPago.getDate()).padStart(2,'0');
-}
-function registrarCompraTarjeta(tarjetaId,quien,montoTotal,meses,fechaCompra,desc){
-  const data=getCuentaStore();
-  const tarjeta=(data.tarjetas||[]).find(t=>t.id===tarjetaId);
-  if(!tarjeta)return false;
-  const n=Math.max(parseInt(meses)||1,1);
-  const cuota=Math.round((montoTotal/n)*100)/100;
-  const movs=getTarjetaMovimientos();
-  for(let i=1;i<=n;i++){
-    movs.push({
-      id:uid(),tarjetaId,quien,desc:desc||tarjeta.nombre,
-      monto:i===n?montoTotal-cuota*(n-1):cuota, // ajusta el residuo en la última cuota
-      fecha:calcularFechaPagoCuota(tarjeta,fechaCompra,i),
-      cuotaIndex:i,cuotaTotal:n,pagada:false
-    });
-  }
-  sls(tarjetaMovsKey(),movs);
-  return true;
+// Aliases de compatibilidad — la lógica real está en las funciones TDC de arriba
+function tarjetaMovsKey(){return tdcMovsKey();}
+function getTarjetaMovimientos(){return getTDCMovs();}
+async function registrarCompraTarjeta(tarjetaId,quien,montoTotal,meses,fechaCompra,desc){
+  return crearCuotasTDC(tarjetaId,quien,montoTotal,meses,fechaCompra,desc);
 }
 function marcarCuotaPagada(movId,silencioso){
-  const movs=getTarjetaMovimientos();
+  // Pago al monto completo en la fecha de hoy — wrapper síncrono para compatibilidad
+  const movs=getTDCMovs();
   const m=movs.find(x=>x.id===movId);
   if(!m||m.pagada)return;
-  m.pagada=true;
-  sls(tarjetaMovsKey(),movs);
-  ajustarSaldoReal(m.quien,-m.monto);
-  if(!silencioso)showToast('Cuota marcada como pagada ✓');
+  pagarCuotaTDCLocal(movId,today(),m.montoCuota).then(()=>{
+    if(!silencioso)showToast('Cuota marcada como pagada ✓');
+    renderSaldoCard();
+  });
 }
 
 // ── UI: Registrar ingreso ──
@@ -2373,7 +2380,7 @@ function submitCompraCredito(){
   showToast(meses>1?'Compra a '+meses+' meses registrada ✓':'Compra registrada ✓');
 }
 function getCuotasComprometidasDelMes(quien){
-  return getTarjetaMovimientos().filter(m=>!m.pagada&&fechaEnMesActual(m.fecha)&&(!quien||m.quien===quien));
+  return getTDCMovs().filter(m=>!m.pagada&&m.pagoParcial===0&&tdcEnMesActual(m.fechaVence)&&(!quien||m.quien===quien));
 }
 
 // ── Comprometido total (tarjetas + reembolsos pendientes) ──
@@ -2471,7 +2478,7 @@ function PROJ_buildData(){
 
   // ── Cuotas TDC — misma clave que usa el resto de la app ──
   let movsTDC=[];
-  try{movsTDC=(JSON.parse(localStorage.getItem(tarjetaMovsKey())||'[]')).filter(m=>!m.pagada);}catch(e){}
+  try{movsTDC=getTDCMovs().filter(m=>!m.pagada);}catch(e){}
 
   // ── Fijos del catálogo ──
   const fijosConf=getFijosStore().fijos||[];
@@ -2515,14 +2522,17 @@ function PROJ_buildData(){
     conceptos.push({tipo:'fijo',label:f.nombre||f.l||f.id||'Fijo',vals,fin:null});
   });
 
-  // TDC agrupadas por compra
+  // TDC agrupadas por compra — usa nueva estructura (montoCuota, fechaVence, idCompra)
   const agrupadas={};
   movsTDC.forEach(m=>{
-    const k=(m.desc||'Compra')+'|'+m.tarjetaId+'|'+m.cuotaTotal;
-    if(!agrupadas[k]){agrupadas[k]={tipo:'tdc',label:(m.desc||'Compra')+(m.cuotaTotal>1?' ×'+m.cuotaTotal+'M':''),vals:{},cuotas:[],ultimoMes:''};}
-    const ms=m.fecha.substring(0,7);
-    agrupadas[k].vals[ms]=(agrupadas[k].vals[ms]||0)-m.monto;
-    agrupadas[k].cuotas.push({mes:ms,idx:m.cuotaIndex,tot:m.cuotaTotal});
+    const k=(m.descripcion||m.desc||'Compra')+'|'+(m.tarjetaId||m.tarjeta||'')+'|'+(m.totalCuotas||m.cuotaTotal||1);
+    const label=(m.descripcion||m.desc||'Compra')+((m.totalCuotas||m.cuotaTotal||1)>1?' ×'+(m.totalCuotas||m.cuotaTotal)+'M':'');
+    if(!agrupadas[k]){agrupadas[k]={tipo:'tdc',label,vals:{},cuotas:[],ultimoMes:''};}
+    const fecha=m.fechaVence||m.fecha||'';
+    const ms=fecha.substring(0,7);
+    const monto=m.montoCuota||m.monto||0;
+    agrupadas[k].vals[ms]=(agrupadas[k].vals[ms]||0)-monto;
+    agrupadas[k].cuotas.push({mes:ms,idx:m.cuota||m.cuotaIndex||1,tot:m.totalCuotas||m.cuotaTotal||1});
     if(ms>agrupadas[k].ultimoMes)agrupadas[k].ultimoMes=ms;
   });
   Object.values(agrupadas).forEach(c=>conceptos.push({...c,fin:c.ultimoMes}));
@@ -4831,7 +4841,305 @@ function persistFijosStore(data){
 }
 function getFijosDelMes(){const cfg=getFijosStore();return((cfg&&cfg.fijos)||DEFAULT_FIJOS||[]).map(f=>({...f,grupo:f.grupo||'vivienda'}));}
 function detectarFijoPagado(fijo){const n=(fijo.nombre||fijo.l||'').trim().toLowerCase();if(!n)return null;return gastosMes.find(g=>{const nt=(g.nota||'').toLowerCase();return(g.origen==='fijo'&&nt.includes(n))||nt.includes(n);})||null;}
+// ════════════════════════════════════════════════════════════
+// TARJETAS DE CRÉDITO — TDC
+// Datos en localStorage + sync a pestaña Cuotas_TDC del Sheet
+// ════════════════════════════════════════════════════════════
+const COLUMNAS_TDC_HDR=['ID','IDCompra','Descripcion','Tarjeta','MontoTotal','Cuota','TotalCuotas','MontoCuota','FechaVence','FechaPago','Pagada','Quien','PagoParcial'];
+
+// ── Storage local ──
+function tdcMovsKey(){return `pb_tarjeta_movs_${currentAcct}`;}
+function getTDCMovs(){try{return JSON.parse(localStorage.getItem(tdcMovsKey())||'[]');}catch{return [];}}
+function saveTDCMovs(movs){localStorage.setItem(tdcMovsKey(),JSON.stringify(movs));}
+
+// ── Helpers ──
+function tdcMesActual(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function tdcEnMesActual(fecha){return fecha&&fecha.startsWith(tdcMesActual());}
+function calcularFechaPagoCuota(tarjeta,fechaCompra,numeroCuota){
+  const fc=new Date(fechaCompra+'T12:00:00');
+  let mesBase=fc.getMonth(),anioBase=fc.getFullYear();
+  if(fc.getDate()>tarjeta.diaCorte)mesBase++;
+  const mesCuota=mesBase+(numeroCuota-1);
+  const fechaPago=new Date(anioBase,mesCuota,tarjeta.diaPago);
+  return fechaPago.getFullYear()+'-'+String(fechaPago.getMonth()+1).padStart(2,'0')+'-'+String(fechaPago.getDate()).padStart(2,'0');
+}
+
+// ── Crear cuotas ──
+async function crearCuotasTDC(tarjetaId,quien,montoTotal,meses,fechaCompra,desc){
+  const data=getCuentaStore();
+  const tarjeta=(data.tarjetas||[]).find(t=>t.id===tarjetaId);
+  if(!tarjeta)return false;
+  const n=Math.max(parseInt(meses)||1,1);
+  const cuota=Math.round((montoTotal/n)*100)/100;
+  const idCompra='comp_'+Date.now().toString(36);
+  const nuevas=[];
+  for(let i=1;i<=n;i++){
+    nuevas.push({
+      id:uid(),idCompra,descripcion:desc||tarjeta.nombre,
+      tarjeta:tarjeta.nombre,tarjetaId,
+      montoTotal,cuota:i,totalCuotas:n,
+      montoCuota:i===n?Math.round((montoTotal-cuota*(n-1))*100)/100:cuota,
+      fechaVence:calcularFechaPagoCuota(tarjeta,fechaCompra,i),
+      fechaPago:'',pagada:false,pagoParcial:0,quien
+    });
+  }
+  const movs=getTDCMovs();
+  nuevas.forEach(m=>movs.push(m));
+  saveTDCMovs(movs);
+  // Sync al Sheet
+  if(isOnline){
+    try{
+      if(esHogar(currentAcct)){
+        await postAPI({action:'registrarCuotasTDC',token:TOKEN,userId:currentAcct,cuotas:nuevas});
+      }else{
+        await appendCuotasPersonal(currentAcct,nuevas);
+      }
+    }catch(e){dbgLog('warn','crearCuotasTDC sync fallo',e.message);}
+  }
+  return true;
+}
+
+// ── Pagar cuota ──
+async function pagarCuotaTDCLocal(movId,fechaPago,montoPagado){
+  const movs=getTDCMovs();
+  const m=movs.find(x=>x.id===movId);
+  if(!m)return{ok:false,error:'Cuota no encontrada'};
+  const esParcial=montoPagado<m.montoCuota-0.01;
+  m.fechaPago=fechaPago;
+  m.pagada=!esParcial;
+  m.pagoParcial=esParcial?montoPagado:0;
+  saveTDCMovs(movs);
+  // Descuento del saldo en la fecha real de pago
+  if(tdcEnMesActual(fechaPago))ajustarSaldoReal(m.quien,-montoPagado);
+  // Sync al Sheet
+  if(isOnline){
+    try{
+      if(esHogar(currentAcct)){
+        await postAPI({action:'pagarCuotaTDC',token:TOKEN,userId:currentAcct,cuotaId:movId,fechaPago,montoPagado});
+      }else{
+        await pagarCuotaPersonal(currentAcct,movId,fechaPago,montoPagado,esParcial);
+      }
+    }catch(e){dbgLog('warn','pagarCuotaTDC sync fallo',e.message);}
+  }
+  return{ok:true,parcial:esParcial};
+}
+
+// ── Cuentas personales: Sheets API directa ──
+async function appendCuotasPersonal(email,cuotas){
+  const sheetId=await getUserSheetId(email);
+  const rows=cuotas.map(c=>[c.id,c.idCompra,c.descripcion,c.tarjeta,c.montoTotal,c.cuota,c.totalCuotas,c.montoCuota,c.fechaVence,'','NO',c.quien,0]);
+  // Crear pestaña si no existe
+  const token=await getAccessToken();
+  const metaRes=await fetch(`${SHEETS_API}/${sheetId}?fields=sheets.properties`,{headers:{'Authorization':'Bearer '+token}});
+  const meta=await metaRes.json();
+  const existe=(meta.sheets||[]).some(s=>s.properties.title==='Cuotas_TDC');
+  if(!existe){
+    await fetch(`${SHEETS_API}/${sheetId}:batchUpdate`,{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({requests:[{addSheet:{properties:{title:'Cuotas_TDC'}}}]})});
+    await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Cuotas_TDC!A1:append?valueInputOption=RAW`,'POST',{values:[COLUMNAS_TDC_HDR]});
+  }
+  await sheetsRequest(`${SHEETS_API}/${sheetId}/values/Cuotas_TDC!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,'POST',{values:rows});
+}
+async function pagarCuotaPersonal(email,movId,fechaPago,montoPagado,esParcial){
+  const rows=await readUserSheet(email,'Cuotas_TDC','A:M');
+  const idx=rows.findIndex((r,i)=>i>0&&String(r[0])===movId);
+  if(idx<0)return;
+  const rowNum=idx+1;
+  const sheetId=await getUserSheetId(email);
+  const data=[{range:`Cuotas_TDC!J${rowNum}`,values:[[fechaPago]]},{range:`Cuotas_TDC!K${rowNum}`,values:[[esParcial?'PARCIAL':'SI']]},{range:`Cuotas_TDC!M${rowNum}`,values:[[esParcial?montoPagado:0]]}];
+  await sheetsRequest(`${SHEETS_API}/${sheetId}/values:batchUpdate`,'POST',{valueInputOption:'RAW',data});
+}
+
+// ── Migración: localStorage → Sheet (solo una vez) ──
+async function migrarCuotasTDCAlSheet(){
+  const migrKey='pb_tdc_migrado_'+currentAcct;
+  if(localStorage.getItem(migrKey))return;
+  const movs=getTDCMovs();
+  if(!movs.length){localStorage.setItem(migrKey,'1');return;}
+  dbgLog('info','TDC migración','migrando '+movs.length+' cuotas al Sheet');
+  try{
+    if(esHogar(currentAcct)){
+      await postAPI({action:'registrarCuotasTDC',token:TOKEN,userId:currentAcct,cuotas:movs});
+    }else{
+      await appendCuotasPersonal(currentAcct,movs);
+    }
+    localStorage.setItem(migrKey,'1');
+    dbgLog('info','TDC migración','completada');
+  }catch(e){
+    dbgLog('warn','TDC migración fallo',e.message);
+  }
+}
+
+// ── Render: sección Tarjetas en Historial ──
+async function renderSeccionTarjetas(){
+  const el=document.getElementById('tarjetas-section');
+  if(!el)return;
+  // Migrar si es la primera vez
+  if(isOnline)migrarCuotasTDCAlSheet().catch(()=>{});
+  const movs=getTDCMovs();
+  const tarjetas=getCuentaStore().tarjetas||[];
+  const hoy=tdcMesActual();
+  if(!movs.length){
+    el.innerHTML=`<div class="empty-state"><div class="es-emoji">💳</div><div class="es-text">Sin compras a crédito registradas.<br>Agrega tus tarjetas en Configuración<br>y registra compras al pagar.</div></div>`;
+    return;
+  }
+  // Resumen del mes
+  const cuotasHoy=movs.filter(m=>m.fechaVence&&m.fechaVence.startsWith(hoy));
+  const totalHoy=cuotasHoy.reduce((s,m)=>s+m.montoCuota,0);
+  const pagadoHoy=cuotasHoy.filter(m=>m.pagada||m.pagoParcial>0).reduce((s,m)=>s+(m.pagada?m.montoCuota:m.pagoParcial),0);
+  const pendienteHoy=totalHoy-pagadoHoy;
+  let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Este mes</div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--muted);font-family:sans-serif">Vencen este mes</span><span style="font-size:12px;font-weight:600;color:var(--acc)">${fmxn(totalHoy)}</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--muted);font-family:sans-serif">Pagado</span><span style="font-size:12px;font-weight:600;color:var(--success)">${fmxn(pagadoHoy)}</span></div>
+    <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
+    <div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:600;color:var(--text);font-family:sans-serif">Pendiente</span><span style="font-size:14px;font-weight:700;color:${pendienteHoy>0?'var(--acc)':'var(--success)'}">${fmxn(pendienteHoy)}</span></div>
+  </div>`;
+  // Agrupar por tarjeta
+  const porTarjeta={};
+  movs.forEach(m=>{
+    const tk=m.tarjeta||'Sin tarjeta';
+    if(!porTarjeta[tk])porTarjeta[tk]={nombre:tk,movs:[],totalPendiente:0,cuotasHoyCount:0};
+    porTarjeta[tk].movs.push(m);
+    if(!m.pagada&&m.pagoParcial===0)porTarjeta[tk].totalPendiente+=m.montoCuota;
+    if(m.fechaVence&&m.fechaVence.startsWith(hoy)&&!m.pagada)porTarjeta[tk].cuotasHoyCount++;
+  });
+  // Agrupar movs de cada tarjeta por compra (idCompra)
+  Object.values(porTarjeta).forEach(tk=>{
+    const compras={};
+    tk.movs.forEach(m=>{
+      if(!compras[m.idCompra])compras[m.idCompra]={idCompra:m.idCompra,desc:m.descripcion,montoTotal:m.montoTotal,totalCuotas:m.totalCuotas,cuotas:[]};
+      compras[m.idCompra].cuotas.push(m);
+    });
+    tk.compras=Object.values(compras).sort((a,b)=>a.cuotas[0]?.fechaVence>b.cuotas[0]?.fechaVence?1:-1);
+    const pagadas=tk.movs.filter(m=>m.pagada).length;
+    tk.pctPagado=tk.movs.length>0?Math.round((pagadas/tk.movs.length)*100):0;
+  });
+  const tarjArray=Object.values(porTarjeta);
+  tarjArray.forEach((tk,ti)=>{
+    const expandId='tdc-tk-'+ti;
+    const alDia=tk.totalPendiente===0;
+    html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden">
+      <div onclick="tdcToggleTarjeta('${expandId}')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer">
+        <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(183,152,88,0.12)">💳</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(tk.nombre)}</div>
+          <div style="font-size:10px;color:var(--muted)">${tk.compras.length} compra${tk.compras.length!==1?'s':''} · ${tk.movs.length} cuota${tk.movs.length!==1?'s':''}</div>
+        </div>
+        ${alDia?`<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(45,122,79,0.1);color:var(--success);font-weight:500">Al día</span>`:`<span style="font-size:11px;font-weight:600;color:var(--acc)">${fmxn(tk.totalPendiente)}</span>`}
+        <span id="arr-tdc-${ti}" style="font-size:18px;color:var(--muted);transition:transform .2s">›</span>
+      </div>
+      <div id="${expandId}" style="display:none;padding:0 14px 12px">
+        <div style="height:4px;background:rgba(84,41,22,0.08);border-radius:2px;overflow:hidden;margin-bottom:4px">
+          <div style="height:100%;width:${tk.pctPagado}%;background:var(--success);border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:10px">${tk.pctPagado}% pagado</div>
+        ${tk.compras.map((comp,ci)=>{
+          const compId='tdc-comp-'+ti+'-'+ci;
+          const pagadasComp=comp.cuotas.filter(c=>c.pagada).length;
+          const pendComp=comp.cuotas.filter(c=>!c.pagada);
+          const montoRestante=pendComp.reduce((s,c)=>s+c.montoCuota,0);
+          const hayHoy=comp.cuotas.some(c=>c.fechaVence&&c.fechaVence.startsWith(hoy)&&!c.pagada);
+          return `<div style="border-top:0.5px solid var(--border);margin:0 -14px;padding:0 14px">
+            <div onclick="tdcToggleCompra('${compId}',${ti})" style="display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer">
+              <span id="arr-comp-${compId}" style="font-size:12px;color:var(--muted);transition:transform .2s">›</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(comp.desc)}</div>
+                <div style="font-size:10px;color:var(--muted)">${fmxn(comp.montoTotal)} · ${comp.totalCuotas} MSI · ${pagadasComp}/${comp.totalCuotas} pagadas</div>
+              </div>
+              ${hayHoy?`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(241,193,102,0.15);color:var(--s);font-weight:500">Vence hoy</span>`:`<span style="font-size:11px;color:var(--muted)">${fmxn(montoRestante)} rest.</span>`}
+            </div>
+            <div id="${compId}" style="display:none;padding-bottom:8px">
+              ${comp.cuotas.sort((a,b)=>a.cuota-b.cuota).map(c=>{
+                const esFutura=!c.fechaVence.startsWith(hoy)&&!c.pagada&&c.fechaVence>hoy+'-99';
+                const esHoyC=c.fechaVence&&c.fechaVence.startsWith(hoy);
+                let estadoColor='var(--muted)';
+                let estadoIcon='·';
+                if(c.pagada){estadoColor='var(--success)';estadoIcon='✓';}
+                else if(c.pagoParcial>0){estadoColor='var(--s)';estadoIcon='~';}
+                else if(esHoyC){estadoColor='var(--acc)';}
+                return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border)">
+                  <div style="width:22px;height:22px;border-radius:50%;background:${c.pagada?'rgba(45,122,79,0.12)':esHoyC?'rgba(161,58,30,0.1)':'rgba(84,41,22,0.06)'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:${estadoColor};flex-shrink:0">${c.pagada?'✓':c.cuota}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:11px;color:${esFutura?'var(--muted)':'var(--text)'}">Cuota ${c.cuota}/${c.totalCuotas}${c.pagada?' · pagada '+c.fechaPago:' · vence '+c.fechaVence}</div>
+                    ${c.pagoParcial>0?`<div style="font-size:10px;color:var(--s)">Pago parcial: ${fmxn(c.pagoParcial)} de ${fmxn(c.montoCuota)}</div>`:''}
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:${estadoColor};flex-shrink:0">${fmxn(c.montoCuota)}</span>
+                  ${!c.pagada&&(esHoyC||c.pagoParcial>0)?`<button onclick="abrirPagarCuota('${c.id}')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;flex-shrink:0">Pagar</button>`:''}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function tdcToggleTarjeta(id){
+  const el=document.getElementById(id);
+  const ti=id.replace('tdc-tk-','');
+  const arr=document.getElementById('arr-tdc-'+ti);
+  if(!el)return;
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  if(arr)arr.style.transform=open?'':'rotate(90deg)';
+}
+function tdcToggleCompra(id){
+  const el=document.getElementById(id);
+  const arr=document.getElementById('arr-comp-'+id);
+  if(!el)return;
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  if(arr)arr.style.transform=open?'':'rotate(90deg)';
+}
+
+// ── Modal: pagar cuota ──
+function abrirPagarCuota(movId){
+  const movs=getTDCMovs();
+  const m=movs.find(x=>x.id===movId);
+  if(!m)return;
+  const pendiente=m.pagoParcial>0?(m.montoCuota-m.pagoParcial):m.montoCuota;
+  let html=`<div style="font-size:15px;font-weight:600;color:var(--p);font-family:'Georgia',serif;margin-bottom:4px">Registrar pago</div>
+  <div style="background:rgba(183,152,88,0.1);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+    <div style="font-size:12px;color:var(--p);font-weight:600">${escapeHtml(m.descripcion)} · cuota ${m.cuota}/${m.totalCuotas}</div>
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">${escapeHtml(m.tarjeta)} · vence ${m.fechaVence}</div>
+    ${m.pagoParcial>0?`<div style="font-size:11px;color:var(--s);margin-top:2px">Pago parcial previo: ${fmxn(m.pagoParcial)} · Resta: ${fmxn(pendiente)}</div>`:''}
+  </div>
+  <div class="form-group">
+    <label class="form-label">Monto pagado</label>
+    <input type="number" class="form-input amount-input" id="pagar-cuota-monto" value="${pendiente}" inputmode="decimal" style="font-size:24px">
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:4px;text-align:center">Puedes pagar menos si fue pago parcial</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Fecha real de pago</label>
+    <input type="date" class="form-input" id="pagar-cuota-fecha" value="${today()}">
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:4px">El saldo se descuenta en este mes si la fecha es del mes actual</div>
+  </div>
+  <button class="btn-submit" onclick="confirmarPagarCuota('${movId}')">Confirmar pago</button>`;
+  mostrarModalGenerico(html);
+}
+
+async function confirmarPagarCuota(movId){
+  const monto=parseFloat(document.getElementById('pagar-cuota-monto').value);
+  const fecha=document.getElementById('pagar-cuota-fecha').value;
+  if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
+  if(!fecha){showToast('Selecciona una fecha');return;}
+  const btn=document.querySelector('#modal-generico-body .btn-submit');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const res=await pagarCuotaTDCLocal(movId,fecha,monto);
+  cerrarModalGenerico();
+  if(res.ok){
+    showToast(res.parcial?`Pago parcial registrado ✓`:`Cuota pagada ✓`);
+    renderSaldoCard();
+    renderSeccionTarjetas();
+  }else{
+    showToast(res.error||'Error al registrar pago');
+  }
+}
+
 let _fijosVista='mes';
+
 function setFijosVista(v){_fijosVista=v;['fv-mes','fv-anual'].forEach(id=>{const b=document.getElementById(id);if(!b)return;const act=(id==='fv-mes'&&v==='mes')||(id==='fv-anual'&&v==='anual');b.style.background=act?'var(--card)':'transparent';b.style.color=act?'var(--text)':'var(--muted)';b.style.fontWeight=act?'500':'400';});const m=v==='anual'?12:1;document.querySelectorAll('.fv-m').forEach(el=>{el.textContent=fmxn((parseFloat(el.dataset.b)||0)*m);});document.querySelectorAll('.fv-p').forEach(el=>{el.textContent=v==='mes'?'/mes':'/año';});}
 function togGrupoFijo(id){const b=document.getElementById(id+'_b');if(!b)return;const s=b.style.display==='none';b.style.display=s?'block':'none';const a=document.getElementById(id+'_a');if(a)a.style.transform=s?'rotate(180deg)':'';}
 function renderSeccionFijos(){const el=document.getElementById('fijos-section');if(!el)return;const fijos=getFijosDelMes();if(!fijos.length){el.innerHTML='';return;}const res=fijos.map(f=>{
