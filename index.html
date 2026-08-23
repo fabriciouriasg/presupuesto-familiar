@@ -458,7 +458,6 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div id="menu-mas" style="display:none;position:fixed;background:var(--bg);border:0.5px solid var(--border);border-radius:12px;box-shadow:0 4px 20px rgba(42,24,16,0.15);padding:4px;z-index:500;min-width:200px">
         <div onclick="abrirEvaluadorCompra();PROJ_cerrarMenuMas()" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-family:'Helvetica Neue',sans-serif" onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background='none'">🛍️ ¿Me lo puedo comprar?</div>
         <div onclick="PROJ_abrir();PROJ_cerrarMenuMas()" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-family:'Helvetica Neue',sans-serif" onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background='none'">📅 Proyección futura</div>
-        <div onclick="verScanLog();PROJ_cerrarMenuMas()" style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-family:'Helvetica Neue',sans-serif" onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background='none'">🔍 Ver registro del escáner</div>
       </div>
     </div>
   </div>
@@ -759,85 +758,237 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 
 <script>
 // ════════════════════════════════════════════════════════════
-// CAPTURA DE ERRORES — visible en pantalla (no hay consola en móvil)
+// CONSOLA DE DIAGNÓSTICO — apagada por default
+// Se habilita desde Configuración → Desarrollo.
+// Cuando está apagada: cero código corre, cero listeners, cero storage.
 // ════════════════════════════════════════════════════════════
-// ── DIAGNÓSTICO DEL ESCÁNER (visible en el celular) ──
-// Se activa solo cuando escaneas un ticket. Muestra cada paso del proceso
-// para poder ver exactamente dónde se detiene.
-window._scanLog=[];
-try{var _sl=localStorage.getItem('pb_scan_log');if(_sl)window._scanLog=JSON.parse(_sl);}catch(e){}
-function scanLog(paso,detalle){
-  try{
-    window._scanLog.push({t:new Date().toLocaleTimeString('es-MX'),paso:paso,detalle:detalle||''});
-    // Guardar en disco: así el registro sobrevive si Android reinicia la app
-    try{localStorage.setItem('pb_scan_log',JSON.stringify(window._scanLog.slice(-40)));}catch(e){}
-    var box=document.getElementById('scan-diag');
-    if(!box){
-      box=document.createElement('div');
-      box.id='scan-diag';
-      box.style.cssText='position:fixed;left:8px;right:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:3000;background:rgba(20,8,2,0.94);color:#7ef5a8;border-radius:10px;padding:10px 12px;font-family:monospace;font-size:10px;line-height:1.5;max-height:45vh;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4)';
-      box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px"><b style="color:#fefaf0;flex:1">Diagnóstico del escáner</b><button onclick="copiarScanLog()" style="background:rgba(126,245,168,0.2);border:none;color:#7ef5a8;font-size:10px;cursor:pointer;padding:4px 8px;border-radius:6px;font-family:inherit">Copiar</button><button onclick="limpiarScanLog()" style="background:none;border:none;color:#fefaf0;font-size:10px;cursor:pointer;padding:4px 6px">Limpiar</button><button onclick="this.closest(\'#scan-diag\').remove()" style="background:none;border:none;color:#fefaf0;font-size:16px;cursor:pointer;padding:0 4px">✕</button></div><div id="scan-diag-body"></div>';
-      document.body.appendChild(box);
-    }
-    var body=document.getElementById('scan-diag-body');
-    if(body){
-      body.innerHTML=window._scanLog.map(function(l){
-        return '<div>'+l.t+' · <b>'+l.paso+'</b>'+(l.detalle?' — '+l.detalle:'')+'</div>';
-      }).join('');
-      body.scrollTop=body.scrollHeight;
-    }
-  }catch(e){}
-}
-function verScanLog(){
-  // Siempre MOSTRAR (no alternar): si ya está abierto, solo lo refresca.
-  var box=document.getElementById('scan-diag');
-  if(box)box.remove();          // recrear limpio para refrescar el contenido
-  if(!window._scanLog||!window._scanLog.length){
-    scanLog('Registro vacío','escanea un ticket para ver los pasos');
-  }else{
-    scanLog('— registro abierto —', window._scanLog.length+' pasos guardados');
+var _debugActivo=!!localStorage.getItem('pb_debug_on');
+var _dbgLog=[];     // en memoria, máx 200 — solo cuando está activa
+var _dbgErrores=0;  // contador de errores sin leer para el badge
+
+// Niveles: 'info' | 'warn' | 'error'
+function dbgLog(nivel,paso,detalle){
+  if(!_debugActivo)return;
+  var entrada={t:new Date().toLocaleTimeString('es-MX'),nivel:nivel||'info',paso:paso||'',detalle:detalle||''};
+  _dbgLog.push(entrada);
+  if(_dbgLog.length>200)_dbgLog.shift();
+  if(nivel==='error'||nivel==='warn'){
+    _dbgErrores++;
+    _dbgActualizarBadge();
   }
-}
-function limpiarScanLog(){
-  window._scanLog=[];
-  try{localStorage.removeItem('pb_scan_log');}catch(e){}
-  var b=document.getElementById('scan-diag-body');
-  if(b)b.innerHTML='<div style="color:#fefaf0">Registro vacío. Escanea un ticket.</div>';
-}
-function copiarScanLog(){
-  var txt=window._scanLog.map(function(l){return l.t+' · '+l.paso+(l.detalle?' — '+l.detalle:'');}).join('\n');
-  try{
-    navigator.clipboard.writeText(txt);
-    showToast('Registro copiado ✓');
-  }catch(e){
-    // Respaldo: mostrar en un prompt para copiar a mano
-    try{prompt('Copia este texto:',txt);}catch(e2){}
-  }
+  _dbgRefrescarPanel();
 }
 
-// Capturar promesas rechazadas sin manejar (returns silenciosos no, pero sí errores async)
-window.addEventListener('unhandledrejection',function(ev){
-  scanLog('PROMESA RECHAZADA',(ev.reason&&ev.reason.message)||String(ev.reason));
-});
+// Alias para no romper las 32+ llamadas existentes de scanLog
+function scanLog(paso,detalle){dbgLog('info',paso,detalle);}
 
+// Solo si está activa: registrar errores JS globales
+function _dbgRegistrarListeners(){
+  window.addEventListener('unhandledrejection',function(ev){
+    dbgLog('error','PROMESA RECHAZADA',(ev.reason&&ev.reason.message)||String(ev.reason));
+  });
+  window.addEventListener('error',function(ev){
+    dbgLog('error','ERROR JS',(ev.message||'')+' L'+ev.lineno);
+    // El banner de error fatal sigue funcionando siempre
+    try{
+      var box=document.getElementById('fatal-error');
+      var msg=document.getElementById('fatal-error-msg');
+      if(box&&msg){msg.textContent=(ev.message||'Error')+(ev.filename?' · línea '+ev.lineno:'');box.style.display='block';}
+    }catch(e){}
+  });
+}
+
+// El banner de error fatal se registra siempre (no depende de la consola)
 window.addEventListener('error',function(ev){
-  scanLog('ERROR JS',(ev.message||'')+' L'+ev.lineno);
+  if(_debugActivo)return; // ya lo maneja _dbgRegistrarListeners
   try{
     var box=document.getElementById('fatal-error');
     var msg=document.getElementById('fatal-error-msg');
-    if(box&&msg){
-      msg.textContent=(ev.message||'Error')+(ev.filename?' · línea '+ev.lineno:'');
-      box.style.display='block';
-    }
+    if(box&&msg){msg.textContent=(ev.message||'Error')+(ev.filename?' · línea '+ev.lineno:'');box.style.display='block';}
   }catch(e){}
 });
+
+if(_debugActivo)_dbgRegistrarListeners();
+
+// ── UI de la consola ──
+var _dbgFiltro='todo'; // 'todo'|'info'|'warn'|'error'
+var _dbgPos={x:null,y:null};  // posición de la ventana flotante
+var _dbgExpandida=true;
+
+function _dbgActualizarBadge(){
+  var b=document.getElementById('dbg-badge');
+  if(!b)return;
+  if(_dbgErrores>0){b.textContent=_dbgErrores>9?'9+':_dbgErrores;b.style.display='flex';}
+  else b.style.display='none';
+}
+
+function _dbgRefrescarPanel(){
+  var body=document.getElementById('dbg-panel-body');
+  if(!body||!_dbgExpandida)return;
+  var filtrados=_dbgFiltro==='todo'?_dbgLog:_dbgLog.filter(function(e){return e.nivel===_dbgFiltro;});
+  var COLS={info:'#7ef5a8',warn:'#f1c166',error:'#ff8b7a'};
+  body.innerHTML=filtrados.slice(-80).map(function(e){
+    return '<div style="border-bottom:0.5px solid rgba(255,255,255,0.06);padding:2px 0"><span style="color:rgba(254,250,240,0.35)">'+e.t+'</span> <span style="color:'+COLS[e.nivel]+'">'+e.paso+'</span>'+(e.detalle?'<span style="color:rgba(254,250,240,0.45)"> — '+e.detalle+'</span>':'')+'</div>';
+  }).join('');
+  body.scrollTop=body.scrollHeight;
+}
+
+function _dbgConteo(nivel){
+  if(nivel==='todo')return _dbgLog.length;
+  return _dbgLog.filter(function(e){return e.nivel===nivel;}).length;
+}
+
+function _dbgSetFiltro(nivel){
+  _dbgFiltro=nivel;
+  ['todo','info','warn','error'].forEach(function(n){
+    var b=document.getElementById('dbg-f-'+n);
+    if(b)b.style.background=n===nivel?'rgba(126,245,168,0.2)':'none';
+  });
+  _dbgRefrescarPanel();
+}
+
+function _dbgActualizarConteos(){
+  var mapa={todo:_dbgLog.length,info:_dbgConteo('info'),warn:_dbgConteo('warn'),error:_dbgConteo('error')};
+  Object.keys(mapa).forEach(function(n){
+    var b=document.getElementById('dbg-f-'+n);
+    if(b){var caps={todo:'Todo',info:'Info',warn:'Avisos',error:'Errores'};b.textContent=caps[n]+' '+mapa[n];}
+  });
+}
+
+function dbgToggle(){
+  _dbgExpandida=!_dbgExpandida;
+  var panel=document.getElementById('dbg-panel');
+  var burbuja=document.getElementById('dbg-burbuja');
+  if(panel)panel.style.display=_dbgExpandida?'flex':'none';
+  if(burbuja)burbuja.style.display=_dbgExpandida?'none':'flex';
+  if(_dbgExpandida){_dbgErrores=0;_dbgActualizarBadge();_dbgActualizarConteos();_dbgRefrescarPanel();}
+}
+
+function dbgCopiar(){
+  var txt=_dbgLog.map(function(e){return e.t+' ['+e.nivel+'] '+e.paso+(e.detalle?' — '+e.detalle:'');}).join('\n');
+  try{navigator.clipboard.writeText(txt);showToast('Registro copiado ✓');}
+  catch(e){try{prompt('Copia este texto:',txt);}catch(e2){}}
+}
+
+function dbgLimpiar(){
+  _dbgLog=[];_dbgErrores=0;
+  _dbgActualizarBadge();_dbgActualizarConteos();_dbgRefrescarPanel();
+  showToast('Registro limpiado');
+}
+
+// ── Toggle desde Configuración ──
+function dbgActivar(on){
+  _debugActivo=!!on;
+  if(on){localStorage.setItem('pb_debug_on','1');_dbgRegistrarListeners();_dbgMostrarUI();}
+  else{localStorage.removeItem('pb_debug_on');_dbgOcultarUI();}
+  renderSettings();
+}
+
+function _dbgMostrarUI(){
+  if(document.getElementById('dbg-panel')||document.getElementById('dbg-burbuja'))return;
+  // Burbuja
+  var bur=document.createElement('div');
+  bur.id='dbg-burbuja';
+  bur.style.cssText='position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:#1e0c04;border:1.5px solid #7ef5a8;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:3100;box-shadow:0 2px 10px rgba(0,0,0,0.4);touch-action:none';
+  bur.innerHTML='<span style="font-size:20px">🐞</span><div id="dbg-badge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;border-radius:9px;background:#ff4444;color:#fff;font-size:10px;font-family:monospace;align-items:center;justify-content:center;padding:0 3px"></div>';
+  bur.onclick=dbgToggle;
+  document.body.appendChild(bur);
+
+  // Panel flotante
+  var pan=document.createElement('div');
+  pan.id='dbg-panel';
+  var iW=window.innerWidth,iH=window.innerHeight;
+  var px=_dbgPos.x!==null?_dbgPos.x:iW-320-14;
+  var py=_dbgPos.y!==null?_dbgPos.y:iH-380-80;
+  pan.style.cssText='position:fixed;left:'+px+'px;top:'+py+'px;width:310px;max-height:360px;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;z-index:3100;box-shadow:0 4px 20px rgba(0,0,0,0.5);touch-action:none';
+  pan.innerHTML=
+    '<div id="dbg-hdr" style="background:#1e0c04;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:grab;border-bottom:0.5px solid rgba(255,255,255,0.12);flex-shrink:0">'+
+      '<span style="font-size:13px">⠿</span>'+
+      '<span style="flex:1;font-size:12px;color:#fefaf0;font-weight:500">Consola · <span id="dbg-ctx" style="color:rgba(254,250,240,0.5);font-size:10px"></span></span>'+
+      '<button onclick="dbgCopiar()" style="background:none;border:none;color:rgba(254,250,240,0.6);font-size:14px;cursor:pointer;padding:2px 5px" title="Copiar">⎘</button>'+
+      '<button onclick="dbgLimpiar()" style="background:none;border:none;color:rgba(254,250,240,0.6);font-size:14px;cursor:pointer;padding:2px 5px" title="Limpiar">🗑</button>'+
+      '<button onclick="dbgToggle()" style="background:none;border:none;color:rgba(254,250,240,0.6);font-size:16px;cursor:pointer;padding:2px 5px" title="Minimizar">−</button>'+
+    '</div>'+
+    '<div style="background:#150803;padding:5px 8px;display:flex;gap:4px;flex-shrink:0;overflow-x:auto;scrollbar-width:none">'+
+      '<button id="dbg-f-todo"  onclick="_dbgSetFiltro(\'todo\')"  style="font-size:10px;padding:3px 8px;border-radius:10px;border:none;background:rgba(126,245,168,0.2);color:#7ef5a8;cursor:pointer;white-space:nowrap">Todo 0</button>'+
+      '<button id="dbg-f-info"  onclick="_dbgSetFiltro(\'info\')"  style="font-size:10px;padding:3px 8px;border-radius:10px;border:none;background:none;color:rgba(254,250,240,0.5);cursor:pointer;white-space:nowrap">Info 0</button>'+
+      '<button id="dbg-f-warn"  onclick="_dbgSetFiltro(\'warn\')"  style="font-size:10px;padding:3px 8px;border-radius:10px;border:none;background:none;color:#f1c166;cursor:pointer;white-space:nowrap">Avisos 0</button>'+
+      '<button id="dbg-f-error" onclick="_dbgSetFiltro(\'error\')" style="font-size:10px;padding:3px 8px;border-radius:10px;border:none;background:none;color:#ff8b7a;cursor:pointer;white-space:nowrap">Errores 0</button>'+
+    '</div>'+
+    '<div id="dbg-panel-body" style="flex:1;overflow-y:auto;background:rgba(20,8,2,0.97);padding:6px 8px;font-family:monospace;font-size:10px;line-height:1.55;color:#7ef5a8;scrollbar-width:thin"></div>'+
+    '<div style="background:#150803;padding:4px 8px;font-size:9px;color:rgba(254,250,240,0.3);flex-shrink:0" id="dbg-footer"></div>';
+  document.body.appendChild(pan);
+
+  // Contexto en el footer
+  function actualizarCtx(){
+    var ctx=document.getElementById('dbg-ctx');
+    var foot=document.getElementById('dbg-footer');
+    var rev=typeof APP_REV!=='undefined'?APP_REV:'?';
+    var acct=typeof currentAcct!=='undefined'?(currentAcct||'—'):'—';
+    var online=navigator.onLine?'en línea':'offline';
+    if(ctx)ctx.textContent=rev;
+    if(foot)foot.textContent=acct+' · '+online;
+  }
+  actualizarCtx();
+  setInterval(actualizarCtx,5000);
+
+  // Arrastre táctil y de ratón
+  var hdr=document.getElementById('dbg-hdr');
+  var startX,startY,startLeft,startTop,arrastrando=false;
+  function onStart(cx,cy){
+    arrastrando=true;
+    startX=cx;startY=cy;
+    var r=pan.getBoundingClientRect();
+    startLeft=r.left;startTop=r.top;
+    hdr.style.cursor='grabbing';
+  }
+  function onMove(cx,cy){
+    if(!arrastrando)return;
+    var dx=cx-startX,dy=cy-startY;
+    var nx=Math.max(0,Math.min(window.innerWidth-pan.offsetWidth,startLeft+dx));
+    var ny=Math.max(0,Math.min(window.innerHeight-pan.offsetHeight,startTop+dy));
+    pan.style.left=nx+'px';pan.style.top=ny+'px';
+  }
+  function onEnd(){
+    arrastrando=false;hdr.style.cursor='grab';
+    _dbgPos={x:parseInt(pan.style.left),y:parseInt(pan.style.top)};
+  }
+  hdr.addEventListener('mousedown',function(e){onStart(e.clientX,e.clientY);e.preventDefault();});
+  document.addEventListener('mousemove',function(e){onMove(e.clientX,e.clientY);});
+  document.addEventListener('mouseup',onEnd);
+  hdr.addEventListener('touchstart',function(e){var t=e.touches[0];onStart(t.clientX,t.clientY);},{passive:true});
+  document.addEventListener('touchmove',function(e){if(arrastrando){var t=e.touches[0];onMove(t.clientX,t.clientY);}},{passive:true});
+  document.addEventListener('touchend',onEnd);
+
+  // Reencajar al rotar
+  window.addEventListener('resize',function(){
+    var r=pan.getBoundingClientRect();
+    var nx=Math.max(0,Math.min(window.innerWidth-pan.offsetWidth,r.left));
+    var ny=Math.max(0,Math.min(window.innerHeight-pan.offsetHeight,r.top));
+    pan.style.left=nx+'px';pan.style.top=ny+'px';
+  });
+
+  _dbgExpandida=true;
+  bur.style.display='none';
+  pan.style.display='flex';
+}
+
+function _dbgOcultarUI(){
+  var pan=document.getElementById('dbg-panel');
+  var bur=document.getElementById('dbg-burbuja');
+  if(pan)pan.remove();
+  if(bur)bur.remove();
+}
+
+// Mostrar UI si ya estaba activa al cargar
+if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 
 // ════════════════════════════════════════════════════════════
 // CONSTANTES
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 68';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 69';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1861,8 +2012,9 @@ function evaluarCompra(){const que=document.getElementById('comprar-que').value.
 function mostrarModalGenerico(html){
   document.getElementById('modal-generico-body').innerHTML=html;
   document.getElementById('modal-generico').style.display='block';
+  _backPush(cerrarModalGenerico);
 }
-function cerrarModalGenerico(){document.getElementById('modal-generico').style.display='none';}
+function cerrarModalGenerico(){document.getElementById('modal-generico').style.display='none';_backPop();}
 function saldoKey(quien){return `pb_saldo_${currentAcct}_${(quien||'').toLowerCase().replace(/\s+/g,'_')}`;}
 function getSaldoReal(quien){return parseFloat(localStorage.getItem(saldoKey(quien)))||0;}
 function ajustarSaldoReal(quien,delta){
@@ -2756,6 +2908,7 @@ function openDrawer(catId){
   const _sg=document.getElementById('drawer-sug'); if(_sg)_sg.style.display='none';
   const _fd=document.getElementById('drawer-fecha'); if(_fd){_fd.style.borderColor='';_fd.style.background='';}
   document.getElementById('inline-drawer').style.display='block';document.getElementById('drawer-overlay').style.display='block';
+  _backPush(closeDrawer);
   setTimeout(()=>document.getElementById('drawer-amount').focus(),300);
 }
 
@@ -2830,7 +2983,7 @@ function selectDrawerSubcat(el,nota){
   document.getElementById('drawer-amount').focus();
 }
 
-function closeDrawer(){document.getElementById('inline-drawer').style.display='none';document.getElementById('drawer-overlay').style.display='none';}
+function closeDrawer(){document.getElementById('inline-drawer').style.display='none';document.getElementById('drawer-overlay').style.display='none';_backPop();}
 function selDrawerPago(el){
   document.querySelectorAll('#drawer-pago-grid .pago-chip').forEach(c=>c.classList.remove('selected'));
   el.classList.add('selected');
@@ -3015,6 +3168,22 @@ function renderSettings(){
       <button class="btn-secondary" onclick="crearSheetManual()" id="btn-crear-sheet">🗂️ Crear / reconectar mi Google Sheet</button>
       <div id="sheet-status" style="font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-top:8px;text-align:center"></div>
     </div>`:''}
+    <div class="settings-section"><div class="settings-title">Desarrollo</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:${_debugActivo?'10':'0'}px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500;color:var(--text);font-family:'Helvetica Neue',sans-serif">Consola de diagnóstico</div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:2px;line-height:1.5">Ventana flotante con el registro de la app. Solo en este dispositivo.</div>
+        </div>
+        <div onclick="dbgActivar(${!_debugActivo})" style="width:42px;height:24px;flex-shrink:0;cursor:pointer;position:relative">
+          <div style="position:absolute;inset:0;border-radius:12px;background:${_debugActivo?'var(--s)':'rgba(84,41,22,0.12)'};transition:background .2s"></div>
+          <div style="position:absolute;top:3px;left:${_debugActivo?'21':'3'}px;width:18px;height:18px;border-radius:50%;background:var(--card);transition:left .2s"></div>
+        </div>
+      </div>
+      ${_debugActivo?`<div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif">${_dbgLog.length} registros en memoria</span>
+        <button onclick="dbgLimpiar();renderSettings()" style="background:none;border:none;color:var(--danger);font-size:12px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">Limpiar</button>
+      </div>`:''}
+    </div>
     <div class="settings-section"><button onclick="signOut()" style="background:none;border:none;color:var(--danger);font-size:14px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:4px 0;width:100%;text-align:left">→ Cerrar sesión</button></div>
   </div>`;
   if(!currentUser?.isAdmin&&!isCasa)cargarAccesosCompartidos();
@@ -3151,6 +3320,26 @@ let _ac;const getAC=()=>{if(!_ac)_ac=new(window.AudioContext||window.webkitAudio
 function playTone(n,v,t){try{const ctx=getAC();let tm=ctx.currentTime;n.forEach(([f,d])=>{const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type=t||'square';o.frequency.value=f;g.gain.setValueAtTime(v,tm);g.gain.exponentialRampToValueAtTime(0.001,tm+d);o.start(tm);o.stop(tm+d);tm+=d*0.85;});}catch(e){}}
 function playSuccess(){playTone([[523,.08],[659,.08],[784,.08],[1047,.15]],.3,'square');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+// ════════════════════════════════════════════════════════════
+// BOTÓN DE REGRESO ANDROID — popstate centralizado
+// Cada modal al abrirse hace pushState y registra su closer.
+// Android presiona atrás → popstate → cerramos el último modal.
+// ════════════════════════════════════════════════════════════
+const _backStack=[];
+function _backPush(closerFn){
+  history.pushState({pb:true},'');
+  _backStack.push(closerFn);
+}
+function _backPop(){
+  _backStack.pop();
+}
+window.addEventListener('popstate',function(){
+  if(_backStack.length){
+    const closer=_backStack.pop();
+    try{closer();}catch(e){}
+  }
+});
 
 // ════════════════════════════════════════════════════════════
 // GOOGLE SHEETS API — Personal accounts
@@ -3617,6 +3806,7 @@ function abrirEditGastoHistorial(encoded){
   renderQuienSelector('edit-quien-grid',gasto.quien||currentUser?.name);
 
   document.getElementById('screen-edit-gasto').style.display='flex';
+  _backPush(cerrarEditGasto);
   document.getElementById('edit-guardar-btn').disabled=false;
   document.getElementById('edit-guardar-btn').textContent='Guardar cambios';
 }
@@ -3624,6 +3814,7 @@ function cerrarEditGasto(){
   const el=document.getElementById('screen-edit-gasto');
   if(el)el.style.display='none';
   _editGastoActual=null;
+  _backPop();
 }
 function confirmarEliminarDesdeEdit(){
   if(!_editGastoActual)return;
