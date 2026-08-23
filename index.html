@@ -837,7 +837,7 @@ window.addEventListener('error',function(ev){
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 67';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 68';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1058,15 +1058,15 @@ function _saveAcctToken(email,token,expiresIn){
   window.gAccessTokenOwner=email||currentAcct||'admin';
 }
 async function getAccessToken(){
-  // Para cuentas Casa, el token del admin (Fabricio/Vanessa) siempre es válido
-  // ya que Casa es administrada por ellos. Solo verificar owner para cuentas personales.
+  // Solo Casa legacy (SHEET_ID de Fabricio) acepta el token del admin sin verificar dueño.
+  // Hogares de terceros y cuentas personales deben tener su propio token.
   const expectedOwner=currentAcct||currentUser?.email||'admin';
   const tokenOk=window.gAccessToken&&window.gTokenExpiry&&Date.now()<window.gTokenExpiry-60000;
-  const esCasa=esHogar(expectedOwner);
-  const ownerOk=esCasa||!window.gAccessTokenOwner||window.gAccessTokenOwner===expectedOwner;
+  const esCasaL=esCasaLegacy(expectedOwner);
+  const ownerOk=esCasaL||!window.gAccessTokenOwner||window.gAccessTokenOwner===expectedOwner;
   if(tokenOk&&ownerOk)return window.gAccessToken;
   // Token vencido o de otro usuario — pedir uno nuevo con hint del email correcto
-  return await requestSheetsAccess(esCasa?null:expectedOwner);
+  return await requestSheetsAccess(esCasaL?null:expectedOwner);
 }
 function handleGoogleResponse(response){
   const payload=parseJwt(response.credential);
@@ -1318,6 +1318,11 @@ function updateBadges(){
 // ════════════════════════════════════════════════════════════
 // ACCOUNT / APP
 // ════════════════════════════════════════════════════════════
+// esCasaLegacy: solo la cuenta compartida hardcodeada (SHEET_ID de Fabricio).
+// esHogar: cualquier hogar, incluidos los de terceros con Sheet propio.
+// La distinción importa para saber si el token del admin (Fabricio/Vanessa)
+// aplica o si hay que pedir el token del dueño real del hogar.
+function esCasaLegacy(acct){return !acct||acct==='casa';}
 function esHogar(acct){return acct==='casa'||(acct&&acct.indexOf('H')===0&&acct.length<15);}
 async function openAccount(acct){
   currentAcct=acct;const isCasa=esHogar(acct);userConfig=isCasa?null:gls('config_'+acct);
@@ -1328,9 +1333,10 @@ async function openAccount(acct){
   document.getElementById('header-name').textContent=nombre;document.getElementById('header-month').textContent=fmonth(new Date());
   const av=document.getElementById('header-av');av.innerHTML=photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:(isCasa?'🏠':nombre[0]);
   applyTheme(userConfig?.tema||'mayne');applyBgImage();showScreen('app');activeTab='hoy';setOnline(navigator.onLine);buildCatGridModal();buildPagoGrid();
-  // Para cuentas personales: solicitar token OAuth DE ESA PERSONA antes de leer/escribir su Sheet.
-  // Esto evita que el token del admin (Fabricio) sea usado para operar la cuenta de otro usuario.
-  if(!isCasa&&isOnline){
+  // Solicitar token OAuth para cualquier cuenta que NO sea Casa legacy.
+  // Esto incluye hogares de terceros (Janio, etc.) — cada uno necesita
+  // su propio token para que los datos escriban en su Drive, no en el del admin.
+  if(!esCasaLegacy(acct)&&isOnline){
     try{await requestSheetsAccess(acct);}catch(e){}
   }
   await loadData();
@@ -1531,7 +1537,7 @@ function _renderHoyContent(){
   // Gastos recientes (últimos 4)
   const recEl=document.getElementById('gastos-recientes');
   if(!recEl)return;
-  const sorted=[...gastosMes].filter(g=>!g._pending).sort((a,b)=>b.fecha>a.fecha?1:-1).slice(0,4);
+  const sorted=[...gastosMes].filter(g=>!g._pending).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);}).slice(0,4);
   if(!sorted.length){recEl.innerHTML=`<div style="text-align:center;padding:14px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos este mes aún</div>`;return;}
   recEl.innerHTML=sorted.map(e=>{
     const c=getCat(e.categoria);
@@ -1772,7 +1778,7 @@ async function buscarGastosHistorial(q){
     let html='<div style="padding:8px 4px 6px;display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:sans-serif;color:var(--muted)">'+items.length+' resultado'+(items.length>1?'s':'')+'</div><div style="font-size:13px;font-weight:700;color:var(--acc);font-family:sans-serif">'+fmxn(totalGlobal)+'</div></div>';
     gruposOrdenados.forEach(mes=>{
       // Orden cronológico explícito dentro del mes, más reciente primero — no confiar en el orden de llegada.
-      const gastos=byMes[mes].sort((a,b)=>b.fecha>a.fecha?1:-1);
+      const gastos=byMes[mes].sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);});
       const mesTotal=gastos.reduce((s,g)=>s+g.monto,0);
       html+='<div class="historial-mes-card"><div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)"><span style="font-size:12px;font-weight:600;color:var(--text);font-family:sans-serif">'+mes+'</span><span style="font-size:12px;font-weight:600;color:var(--acc);font-family:sans-serif">'+fmxn(mesTotal)+'</span></div>';
       gastos.forEach(g=>{
@@ -2475,7 +2481,7 @@ function agruparGastosTicket(gastos){
     nota:gr.comercio,
     origen:'ticket'
   }));
-  return [...agrupados,...sueltos].sort((a,b)=>b.fecha>a.fecha?1:-1);
+  return [...agrupados,...sueltos].sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);});
 }
 
 function renderGrupoTicket(gr,encoded){
@@ -3248,7 +3254,7 @@ async function ejecutarUnirsePareja(){
 }
 function resolverMesLocal(fecha){const d=new Date(fecha+'T12:00:00');return MONTHS[d.getMonth()]+' '+d.getFullYear();}
 async function registrarGastoPersonal(email,gasto){const mes=resolverMesLocal(gasto.fecha);const id=uid();await appendToUserSheet(email,'Log_Gastos',[new Date().toLocaleString('es-MX'),gasto.fecha,gasto.categoria,gasto.monto,gasto.quien,gasto.nota||'',mes,id,gasto.pago||'',gasto.origen||'manual']);return{ok:true,id};}
-async function getAllGastosPersonal(email){const rows=await readUserSheet(email,'Log_Gastos','A:J');if(rows.length<=1)return[];return rows.slice(1).filter(r=>r[1]&&r[3]).map((r,i)=>({rowIndex:i+2,id:r[7]||'',fecha:String(r[1]||'').split('T')[0],categoria:r[2]||'',monto:parseFloat(r[3])||0,quien:r[4]||'',nota:r[5]||'',mes:r[6]||'',pago:r[8]||'',origen:r[9]||'manual'})).sort((a,b)=>b.fecha>a.fecha?1:-1);}
+async function getAllGastosPersonal(email){const rows=await readUserSheet(email,'Log_Gastos','A:J');if(rows.length<=1)return[];return rows.slice(1).filter(r=>r[1]&&r[3]).map((r,i)=>({rowIndex:i+2,id:r[7]||'',fecha:String(r[1]||'').split('T')[0],categoria:r[2]||'',monto:parseFloat(r[3])||0,quien:r[4]||'',nota:r[5]||'',mes:r[6]||'',pago:r[8]||'',origen:r[9]||'manual'})).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:b.rowIndex-a.rowIndex;});}
 async function getLogGastosGridId(email){
   const key=`pb_grid_id_${email}`;const saved=localStorage.getItem(key);if(saved!==null)return parseInt(saved);
   const sheetId=await getUserSheetId(email);
@@ -3556,7 +3562,7 @@ function buildCatDropdowns(gastos){
     const pct=lim>0?Math.min(Math.round(total/lim*100),100):0;
     const over=lim>0&&total>lim;
     const color=over?'var(--danger,#dc2626)':'var(--acc)';
-    const itemsOrd=[...items].sort((a,b)=>(b.fecha>a.fecha?1:-1));
+    const itemsOrd=[...items].sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);});
     html+=`<div style="margin-bottom:6px;border:0.5px solid var(--border);border-radius:12px;overflow:hidden">`;
     html+=`<div onclick="toggleCatDrop('${dropId}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer">`;
     html+=`<span style="font-size:18px">${cat.e}</span>`;
@@ -3775,6 +3781,16 @@ async function ejecutarCrearHogar(){
   if(!nombre){status.textContent='Ingresa un nombre para tu hogar';return;}
   const btn=document.getElementById('btn-crear-hogar');btn.disabled=true;btn.textContent='Creando...';
   try{
+    // El backend necesita el token para crear el Sheet en el Drive del usuario.
+    // Si no lo tenemos, lo pedimos aquí antes de hacer nada.
+    if(!window.gAccessToken||!window.gTokenExpiry||Date.now()>window.gTokenExpiry-60000){
+      status.textContent='Solicitando permiso de Google Drive…';
+      const tok=await requestSheetsAccess(currentUser.email);
+      if(!tok){
+        status.textContent='Necesitamos permiso de Google Drive para crear tu hoja de datos. Intenta de nuevo.';
+        btn.disabled=false;btn.textContent='Crear hogar →';return;
+      }
+    }
     const res=await postAPI({action:'crearHogar',token:TOKEN,email:currentUser.email,nombre,adminNombre:currentUser.name,accessToken:window.gAccessToken||''});
     if(res.ok&&res.hogar){
       miHogar={id:res.hogar.id,nombre:res.hogar.nombre,esAdmin:true,codigo:res.hogar.codigo};
@@ -3782,7 +3798,6 @@ async function ejecutarCrearHogar(){
       status.innerHTML='✅ Hogar creado. Código de invitación: <b style="font-size:16px;letter-spacing:2px">'+res.hogar.codigo+'</b><br><span style="font-size:11px">Compártelo con tu pareja para que se una</span>';
       setTimeout(()=>continuarSinHogar(),3500);
     }else if(res.hogar){
-      // Ya tenía hogar
       miHogar={id:res.hogar.id,nombre:res.hogar.nombre,esAdmin:true,codigo:res.hogar.codigo};
       sls('hogar_'+currentUser.email,miHogar);
       continuarSinHogar();
