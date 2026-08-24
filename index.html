@@ -3060,14 +3060,33 @@ function invCalc(inv){
 
 // ── Abrir / cerrar overlay ──
 let _invMontosOcultos=false;
+let _invVistaActual='lista'; // 'lista' | 'detalle'
 function abrirOverlayInversiones(){
+  _invVistaActual='lista';
   document.getElementById('overlay-inversiones').style.display='block';
   _backPush(cerrarOverlayInversiones);
   renderListaInversiones();
 }
 function cerrarOverlayInversiones(){
+  if(_invVistaActual==='detalle'){
+    _invVistaActual='lista';
+    renderListaInversiones();
+    _invActualizarHeader('lista');
+    return;
+  }
   document.getElementById('overlay-inversiones').style.display='none';
   _backPop();
+}
+function _invActualizarHeader(vista){
+  const titulo=document.getElementById('inv-header-titulo');
+  const btnNueva=document.getElementById('inv-btn-nueva');
+  if(vista==='detalle'){
+    if(titulo)titulo.textContent='Detalle';
+    if(btnNueva)btnNueva.style.display='none';
+  }else{
+    if(titulo)titulo.textContent='Mis inversiones';
+    if(btnNueva)btnNueva.style.display='';
+  }
 }
 function toggleMontosInv(){
   _invMontosOcultos=!_invMontosOcultos;
@@ -3180,6 +3199,8 @@ function renderListaInversiones(){
 function abrirDetalleInversion(id){
   const inv=getInversiones().find(i=>i.id===id);
   if(!inv)return;
+  _invVistaActual='detalle';
+  _invActualizarHeader('detalle');
   const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
   const calc=invCalc(inv);
   const oculto=_invMontosOcultos;
@@ -3221,11 +3242,12 @@ function abrirDetalleInversion(id){
     ].filter(Boolean).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${k}</span><span style="color:var(--text)">${escapeHtml(String(v))}</span></div>`).join('')}
   </div>
   <div style="display:flex;gap:8px;margin-bottom:10px">
-    <button onclick="cerrarModalGenerico();abrirFormInversion('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">✏️ Editar</button>
-    <button onclick="cerrarModalGenerico();abrirAccionesVencimiento('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">💰 Resolver</button>
+    <button onclick="_invVistaActual='lista';renderListaInversiones();_invActualizarHeader('lista');abrirFormInversion('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">✏️ Editar</button>
+    <button onclick="_invVistaActual='lista';renderListaInversiones();_invActualizarHeader('lista');abrirAccionesVencimiento('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">💰 Resolver</button>
   </div>
   <button onclick="eliminarInversion('${id}')" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer">Eliminar inversión</button>`;
-  mostrarModalGenerico(html);
+  const _ctner=document.getElementById('inv-lista-container');
+  if(_ctner){_ctner.innerHTML=html;_ctner.scrollTop=0;}
 }
 
 // ── Acciones al vencer ──
@@ -3283,7 +3305,8 @@ function resolverInversion(id,accion){
 function eliminarInversion(id){
   if(!confirm('¿Eliminar esta inversión?'))return;
   saveInversiones(getInversiones().filter(i=>i.id!==id));
-  cerrarModalGenerico();
+  _invVistaActual='lista';
+  _invActualizarHeader('lista');
   renderListaInversiones();
   showToast('Inversión eliminada');
 }
@@ -4378,12 +4401,13 @@ function renderSettings(){
       <div class="form-group"><label class="form-label">Ingreso mensual Casa</label><input type="number" class="form-input" id="settings-casa-ingreso" value="${gls('casa_config')?.ingreso||44500}" inputmode="decimal" style="font-size:15px"></div>
       <button class="btn-submit" onclick="saveCasaConfig()" style="margin-top:0">Guardar ingreso Casa</button>
     </div>`:''}
-    <div class="settings-section"><div class="settings-title">Métodos de pago (débito y efectivo)</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">${isCasa?'Compartidos entre todos los que usan esta cuenta Casa. ':''}Toca ✕ para eliminar. <strong style="color:var(--p)">Las tarjetas de crédito se agregan en "Fuentes de ingreso y Tarjetas".</strong></div>
-      <div class="chip-grid">${getPagos().map((p,i)=>`<div class="chip-big active"><span class="ce">💳</span><span class="cn">${p}</span><span class="chip-del" onclick="event.stopPropagation();removePago(${i})">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div></div>
-    </div>
-    <div class="settings-section"><div class="settings-title">Fuentes de ingreso y Tarjetas</div>
-      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Configura de dónde viene tu ingreso y tus tarjetas de crédito con sus fechas de corte y pago.</div>
+    <div class="settings-section"><div class="settings-title">Métodos de pago y tarjetas</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:12px">${isCasa?'Compartidos entre todos en esta cuenta. ':''}Gestiona tus formas de pago, fuentes de ingreso y tarjetas de crédito en un solo lugar.</div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Débito y efectivo</div>
+        <div class="chip-grid">${getPagos().map((p,i)=>`<div class="chip-big active"><span class="ce">💳</span><span class="cn">${p}</span><span class="chip-del" onclick="event.stopPropagation();removePago(${i})">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div></div>
+      </div>
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Fuentes de ingreso y tarjetas de crédito</div>
       <button class="btn-submit" onclick="abrirGestionFinanzas()" style="margin-top:0">Administrar fuentes y tarjetas</button>
     </div>
     ${!isCasa?`
