@@ -1004,7 +1004,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 76';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 77';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -2198,7 +2198,7 @@ function abrirGestionFinanzas(){
     html+='<div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Aún no tienes tarjetas configuradas.</div>';
   }else{
     tarjetas.forEach((t,i)=>{
-      html+='<div onclick="abrirEditarTarjeta('+i+')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:6px;cursor:pointer"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">💳 '+escapeHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">Corte día '+t.diaCorte+' · Pago día '+t.diaPago+'</div></div>';
+      html+='<div onclick="abrirEditarTarjeta('+i+')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:6px;cursor:pointer"><div style="font-size:13px;color:var(--text);font-weight:500;font-family:sans-serif">'+(t.emoji||'💳')+' '+escapeHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">Corte día '+t.diaCorte+' · Pago día '+t.diaPago+'</div></div>';
     });
   }
   html+='<button onclick="abrirEditarTarjeta()" style="width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:none;color:var(--muted);font-size:12px;font-family:sans-serif;cursor:pointer;margin-bottom:16px">+ Agregar tarjeta</button>';
@@ -2271,7 +2271,12 @@ function abrirEditarTarjeta(idx){
   const data=getCuentaStore();
   const t=idx!==undefined?(data.tarjetas||[])[idx]:null;
   let html='<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:14px">'+(t?'Editar tarjeta':'Nueva tarjeta')+'</div>';
-  html+=`<div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="inp-tarjeta-nombre" placeholder="ej. HSBC Oro" value="${t?escapeHtml(t.nombre):''}"></div>
+  html+=`<div class="form-group"><label class="form-label">Nombre</label>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input type="text" class="form-input" id="inp-tarjeta-emoji" placeholder="💳" value="${t?.emoji||''}" style="width:52px;text-align:center;font-size:20px;padding:8px 4px;flex-shrink:0" maxlength="4">
+    <input type="text" class="form-input" id="inp-tarjeta-nombre" placeholder="ej. HSBC Oro" value="${t?escapeHtml(t.nombre):''}" style="flex:1">
+  </div>
+  <div style="font-size:10px;color:var(--muted);font-family:sans-serif;margin-top:4px">Escribe un emoji para identificar la tarjeta (opcional)</div></div>
   <div class="form-group" style="display:flex;gap:10px">
     <div style="flex:1"><label class="form-label">Día de corte</label><input type="number" class="form-input" id="inp-tarjeta-corte" placeholder="15" min="1" max="28" value="${t?.diaCorte||''}" inputmode="numeric"></div>
     <div style="flex:1"><label class="form-label">Día de pago</label><input type="number" class="form-input" id="inp-tarjeta-pago" placeholder="5" min="1" max="28" value="${t?.diaPago||''}" inputmode="numeric"></div>
@@ -2289,7 +2294,8 @@ function saveTarjeta(){
   if(!diaCorte||!diaPago){showToast('Ingresa día de corte y de pago');return;}
   const data=getCuentaStore();
   if(!data.tarjetas)data.tarjetas=[];
-  const tarjeta={id:_editTarjetaIdx!==null?data.tarjetas[_editTarjetaIdx].id:uid(),nombre,diaCorte,diaPago};
+  const emoji=(document.getElementById('inp-tarjeta-emoji')?.value||'').trim();
+  const tarjeta={id:_editTarjetaIdx!==null?data.tarjetas[_editTarjetaIdx].id:uid(),nombre,diaCorte,diaPago,emoji};
   if(_editTarjetaIdx!==null)data.tarjetas[_editTarjetaIdx]=tarjeta;
   else data.tarjetas.push(tarjeta);
   persistCuentaStore(data);
@@ -5076,6 +5082,13 @@ async function migrarCuotasTDCAlSheet(){
 }
 
 // ── Render: sección Tarjetas en Historial ──
+// ── Helper: nombre del mes YYYY-MM en español corto ──
+function tdcMesLabel(ym){
+  if(!ym)return'';
+  const MESES_C=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const p=ym.split('-');return MESES_C[parseInt(p[1])-1]+' '+p[0];
+}
+
 async function renderSeccionTarjetas(){
   const el=document.getElementById('tarjetas-section');
   if(!el)return;
@@ -5085,117 +5098,105 @@ async function renderSeccionTarjetas(){
     el.innerHTML=`<div class="empty-state"><div class="es-emoji">💳</div><div class="es-text">Sin compras a crédito registradas.<br>Agrega tus tarjetas en Configuración<br>y registra compras al pagar.</div></div>`;
     return;
   }
-  // ── Balance ──
-  const cuotasEste=movs.filter(m=>m.fechaVence&&m.fechaVence.startsWith(hoy));
-  const totalEste=cuotasEste.reduce((s,m)=>s+m.montoCuota,0);
-  const pagadoEste=cuotasEste.filter(m=>m.pagada||m.pagoParcial>0).reduce((s,m)=>s+(m.pagada?m.montoCuota:m.pagoParcial),0);
-  // Cuotas vencidas sin pagar (meses anteriores)
-  const cuotasVencidas=movs.filter(m=>!m.pagada&&m.pagoParcial===0&&m.fechaVence&&m.fechaVence<hoy+'-01');
-  const totalVencido=cuotasVencidas.reduce((s,m)=>s+m.montoCuota,0);
-  const totalPendiente=movs.filter(m=>!m.pagada).reduce((s,m)=>s+m.montoCuota,0);
-  let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
-    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Balance</div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--muted);font-family:sans-serif">Este mes</span><span style="font-size:12px;font-weight:600;color:var(--acc)">${fmxn(totalEste)}</span></div>
-    ${totalVencido>0?`<div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12px;color:var(--s);font-family:sans-serif">Vencido sin pagar</span><span style="font-size:12px;font-weight:600;color:var(--s)">${fmxn(totalVencido)}</span></div>`:''}
-    <div style="height:0.5px;background:var(--border);margin:6px 0"></div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;font-weight:600;color:var(--text);font-family:sans-serif">Pendiente total</span><span style="font-size:14px;font-weight:700;color:${totalPendiente>0?'var(--acc)':'var(--success)'}">${fmxn(totalPendiente)}</span></div>
-    <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--muted);font-family:sans-serif">Pagado este mes</span><span style="font-size:12px;font-weight:600;color:var(--success)">${fmxn(pagadoEste)}</span></div>
-  </div>`;
-  // ── Agrupar por tarjeta → compra ──
-  const porTarjeta={};
+  const config=getCuentaStore();
+  const tarjetasCfg=config.tarjetas||[];
+  const nombreUsuario=currentUser?.name||userConfig?.nombre||'';
+
+  // ── Agrupar: quien → tarjeta → compra ──
+  const porUsuario={};
   movs.forEach(m=>{
+    const quien=m.quien||'';
+    if(!porUsuario[quien])porUsuario[quien]={quien,tarjetas:{}};
     const tk=m.tarjeta||'Sin tarjeta';
-    if(!porTarjeta[tk])porTarjeta[tk]={nombre:tk,movs:[],vencidas:0};
-    porTarjeta[tk].movs.push(m);
-    if(!m.pagada&&m.pagoParcial===0&&m.fechaVence&&m.fechaVence<hoy+'-01')porTarjeta[tk].vencidas++;
+    if(!porUsuario[quien].tarjetas[tk])porUsuario[quien].tarjetas[tk]={nombre:tk,cuotas:[]};
+    porUsuario[quien].tarjetas[tk].cuotas.push(m);
   });
-  Object.values(porTarjeta).forEach(tk=>{
-    const compras={};
-    tk.movs.forEach(m=>{
-      if(!compras[m.idCompra])compras[m.idCompra]={idCompra:m.idCompra,desc:m.descripcion,montoTotal:m.montoTotal,totalCuotas:m.totalCuotas,cuotas:[]};
-      compras[m.idCompra].cuotas.push(m);
-    });
-    tk.compras=Object.values(compras).sort((a,b)=>a.cuotas[0]?.fechaVence>b.cuotas[0]?.fechaVence?1:-1);
-  });
-  const tarjArray=Object.values(porTarjeta);
-  tarjArray.forEach((tk,ti)=>{
-    const expandId='tdc-tk-'+ti;
-    html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden">
-      <div onclick="tdcToggleTarjeta('${expandId}')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer">
-        <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(183,152,88,0.12)">💳</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(tk.nombre)}</div>
-          <div style="font-size:10px;color:var(--muted)">${tk.compras.length} compra${tk.compras.length!==1?'s':''}</div>
+
+  const usuarios=Object.values(porUsuario).sort((a,b)=>
+    a.quien===nombreUsuario?-1:b.quien===nombreUsuario?1:a.quien.localeCompare(b.quien)
+  );
+
+  let html='';
+  usuarios.forEach(u=>{
+    html+=`<div style="margin-bottom:10px">`;
+    html+=`<div style="font-size:11px;font-weight:500;color:var(--muted);font-family:sans-serif;padding:0 2px 6px">${escapeHtml(u.quien)}</div>`;
+
+    Object.values(u.tarjetas).forEach(tk=>{
+      const cfg=tarjetasCfg.find(t=>normNombrePago(t.nombre)===normNombrePago(tk.nombre));
+      const emoji=cfg?.emoji||'💳';
+      const este=tk.cuotas.filter(c=>c.fechaVence&&c.fechaVence.startsWith(hoy));
+      const totalEste=este.reduce((s,c)=>s+c.montoCuota,0);
+      const pagadoEste=este.filter(c=>c.pagada||c.pagoParcial>0).reduce((s,c)=>s+(c.pagada?c.montoCuota:c.pagoParcial),0);
+      const totalPend=tk.cuotas.filter(c=>!c.pagada).reduce((s,c)=>s+c.montoCuota,0);
+      const vencidas=tk.cuotas.filter(c=>!c.pagada&&c.pagoParcial===0&&c.fechaVence&&c.fechaVence<hoy+'-01');
+      const activas=tk.cuotas.filter(c=>!c.pagada&&c.fechaVence);
+      const libreEn=activas.length?tdcMesLabel(activas.reduce((mx,c)=>c.fechaVence>mx?c.fechaVence:mx,'').substring(0,7)):'';
+      const compras={};
+      tk.cuotas.forEach(c=>{
+        if(!compras[c.idCompra])compras[c.idCompra]={idCompra:c.idCompra,desc:c.descripcion,categoria:c.categoria||'',totalCuotas:c.totalCuotas,cuotas:[]};
+        compras[c.idCompra].cuotas.push(c);
+      });
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden">`;
+      html+=`<div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px" aria-hidden="true">${emoji}</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(tk.nombre)}</span>
+            ${vencidas.length>0?`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(210,160,60,0.15);color:var(--s);font-weight:500">${vencidas.length} vencida${vencidas.length!==1?'s':''}</span>`:''}
+          </div>
+          ${libreEn?`<span style="font-size:10px;color:var(--muted);font-family:sans-serif">libre ${libreEn}</span>`:''}
         </div>
-        ${tk.vencidas>0?`<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(210,160,60,0.15);color:var(--s);font-weight:500">${tk.vencidas} vencida${tk.vencidas!==1?'s':''}</span>`:''}
-        <span id="arr-tdc-${ti}" style="font-size:18px;color:var(--muted);transition:transform .2s">›</span>
-      </div>
-      <div id="${expandId}" style="display:none;padding:0 14px 12px">
-        ${tk.compras.map((comp,ci)=>{
-          const compId='tdc-comp-'+ti+'-'+ci;
-          const pendComp=comp.cuotas.filter(c=>!c.pagada);
-          const montoRestante=pendComp.reduce((s,c)=>s+c.montoCuota,0);
-          const hayVencida=comp.cuotas.some(c=>!c.pagada&&c.pagoParcial===0&&c.fechaVence&&c.fechaVence<hoy+'-01');
-          const hayEste=comp.cuotas.some(c=>c.fechaVence&&c.fechaVence.startsWith(hoy)&&!c.pagada);
-          return `<div style="border-top:0.5px solid var(--border);margin:0 -14px;padding:0 14px">
-            <div onclick="tdcToggleCompra('${compId}')" style="display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer">
-              <span id="arr-comp-${compId}" style="font-size:12px;color:var(--muted);transition:transform .2s">›</span>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(comp.desc)}</div>
-                <div style="font-size:10px;color:var(--muted)">${fmxn(comp.montoTotal)} · ${comp.totalCuotas} meses</div>
-              </div>
-              ${hayVencida?`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(210,160,60,0.15);color:var(--s);font-weight:500">Vencida</span>`:hayEste?`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(183,152,88,0.12);color:var(--acc);font-weight:500">Este mes</span>`:`<span style="font-size:11px;color:var(--muted)">${fmxn(montoRestante)} rest.</span>`}
+        <div style="display:flex;gap:16px">
+          <div><div style="font-size:10px;color:var(--muted);font-family:sans-serif">este mes</div><div style="font-size:13px;font-weight:500;color:var(--acc)">${fmxn(totalEste)}</div></div>
+          <div><div style="font-size:10px;color:var(--muted);font-family:sans-serif">pendiente</div><div style="font-size:13px;font-weight:500;color:var(--text)">${fmxn(totalPend)}</div></div>
+          <div><div style="font-size:10px;color:var(--muted);font-family:sans-serif">pagado</div><div style="font-size:13px;font-weight:500;color:var(--success)">${fmxn(pagadoEste)}</div></div>
+        </div>
+      </div>`;
+      Object.values(compras).forEach(comp=>{
+        const pendComp=comp.cuotas.filter(c=>!c.pagada).sort((a,b)=>a.cuota-b.cuota);
+        if(!pendComp.length)return;
+        const cuotaMes=pendComp.find(c=>c.fechaVence&&c.fechaVence.startsWith(hoy));
+        const cuotaShow=cuotaMes||pendComp[0];
+        const esVencida=!cuotaShow.pagada&&cuotaShow.pagoParcial===0&&cuotaShow.fechaVence&&cuotaShow.fechaVence<hoy+'-01';
+        const esEste=cuotaShow.fechaVence&&cuotaShow.fechaVence.startsWith(hoy);
+        const opacidad=(!esEste&&!esVencida)?'opacity:0.6;':'';
+        const colorMonto=esVencida||esEste?'var(--s)':'var(--muted)';
+        const labelEstado=esVencida?'vencida':esEste?'pendiente':'próx. '+tdcMesLabel(cuotaShow.fechaVence?.substring(0,7)||'');
+        html+=`<div onclick="abrirPagarCuota('${cuotaShow.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:0.5px solid var(--border);cursor:pointer;${opacidad}">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${escapeHtml(comp.desc)} <span style="font-size:11px;color:var(--muted)">${cuotaShow.cuota}/${comp.totalCuotas}</span>
             </div>
-            <div id="${compId}" style="display:none;padding-bottom:10px">
-              ${comp.cuotas.sort((a,b)=>a.cuota-b.cuota).map(c=>{
-                const esVencida=!c.pagada&&c.pagoParcial===0&&c.fechaVence&&c.fechaVence<hoy+'-01';
-                const esEste=c.fechaVence&&c.fechaVence.startsWith(hoy);
-                let color=c.pagada?'var(--success)':esVencida?'var(--s)':esEste?'var(--acc)':'var(--muted)';
-                return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border)">
-                  <div style="width:22px;height:22px;border-radius:50%;background:${c.pagada?'rgba(45,122,79,0.12)':esVencida?'rgba(210,160,60,0.12)':esEste?'rgba(161,58,30,0.08)':'rgba(84,41,22,0.05)'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:${color};flex-shrink:0">${c.pagada?'✓':c.cuota}</div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:11px;color:${c.pagada?'var(--muted)':'var(--text)'}">Cuota ${c.cuota}/${c.totalCuotas} · ${c.pagada?'pagada '+c.fechaPago:'vence '+c.fechaVence}</div>
-                    ${c.pagoParcial>0?`<div style="font-size:10px;color:var(--s)">Parcial: ${fmxn(c.pagoParcial)} de ${fmxn(c.montoCuota)}</div>`:''}
-                  </div>
-                  <span style="font-size:11px;font-weight:600;color:${color};flex-shrink:0">${fmxn(c.montoCuota)}</span>
-                  ${!c.pagada?`<button onclick="abrirPagarCuota('${c.id}')" style="font-size:10px;padding:4px 10px;border-radius:20px;border:0.5px solid ${esVencida?'var(--s)':'var(--border)'};background:${esVencida?'rgba(210,160,60,0.08)':'var(--card)'};color:${esVencida?'var(--s)':'var(--muted)'};cursor:pointer;flex-shrink:0">Pagar</button>`:''}
-                </div>`;
-              }).join('')}
-              ${pendComp.length>1?`<button onclick="liquidarDeudaCompleta('${comp.idCompra}')" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:0.5px solid var(--border);background:var(--card);color:var(--acc);font-size:12px;font-family:sans-serif;cursor:pointer">Liquidar deuda completa · ${fmxn(montoRestante)} restantes</button>`:''}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(comp.categoria||'')}${comp.categoria&&cuotaShow.fechaVence?' · ':''}${cuotaShow.fechaVence?'vence '+cuotaShow.fechaVence:''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:500;color:${colorMonto}">${fmxn(cuotaShow.montoCuota)}</div>
+            <div style="font-size:10px;color:${colorMonto}">${labelEstado}</div>
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
+    });
+    html+=`</div>`;
   });
   el.innerHTML=html;
 }
 
-function tdcToggleTarjeta(id){
-  const el=document.getElementById(id);
-  const ti=id.replace('tdc-tk-','');
-  const arr=document.getElementById('arr-tdc-'+ti);
-  if(!el)return;
-  const open=el.style.display!=='none';
-  el.style.display=open?'none':'block';
-  if(arr)arr.style.transform=open?'':'rotate(90deg)';
-}
-function tdcToggleCompra(id){
-  const el=document.getElementById(id);
-  const arr=document.getElementById('arr-comp-'+id);
-  if(!el)return;
-  const open=el.style.display!=='none';
-  el.style.display=open?'none':'block';
-  if(arr)arr.style.transform=open?'':'rotate(90deg)';
-}
-
-// ── Modal: pagar cuota (Rev 74) ──
+// ── Modal: pagar cuota — con aviso si es de otro usuario ──
 function abrirPagarCuota(movId){
   const movs=getTDCMovs();
   const m=movs.find(x=>x.id===movId);
   if(!m)return;
   const pendiente=m.pagoParcial>0?(m.montoCuota-m.pagoParcial):m.montoCuota;
+  const nombreUsuario=currentUser?.name||userConfig?.nombre||'';
+  const esMia=!m.quien||!nombreUsuario||normNombrePago(m.quien)===normNombrePago(nombreUsuario);
+  const avisoAjena=!esMia?`<div style="display:flex;align-items:flex-start;gap:8px;background:rgba(210,160,60,0.1);border:0.5px solid var(--s);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+    <span style="font-size:14px;flex-shrink:0">⚠️</span>
+    <div><div style="font-size:12px;font-weight:600;color:var(--s)">Esta cuota es de ${escapeHtml(m.quien)}</div>
+    <div style="font-size:11px;color:var(--s);margin-top:2px;line-height:1.4">Puedes registrar el pago pero quedará a tu nombre. ¿Continuar?</div></div>
+  </div>`:'';
   let html=`<div style="font-size:15px;font-weight:600;color:var(--p);font-family:'Georgia',serif;margin-bottom:4px">Confirmar pago</div>
+  ${avisoAjena}
   <div style="background:rgba(183,152,88,0.1);border-radius:8px;padding:10px 12px;margin-bottom:14px">
     <div style="font-size:12px;color:var(--p);font-weight:600">${escapeHtml(m.descripcion)} · cuota ${m.cuota}/${m.totalCuotas}</div>
     <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">${escapeHtml(m.tarjeta)} · vence ${m.fechaVence}</div>
@@ -5286,6 +5287,7 @@ async function confirmarLiquidar(idCompra){
   showToast(ok===pendientes.length?`${ok} cuotas liquidadas ✓`:`${ok}/${pendientes.length} cuotas registradas`);
   renderSaldoCard();await loadData();renderSeccionTarjetas();
 }
+
 
 let _fijosVista='mes';
 
