@@ -1650,33 +1650,87 @@ function rHoy(){_renderHoyContent();renderSaldoCard();}
 function renderSaldoCard(){
   const el=document.getElementById('saldo-disponible-card');
   if(!el)return;
-  const quien=currentUser?.name||userConfig?.nombre||'Yo';
-  const disponible=getSaldoDisponible(quien);
-  const comprometido=getComprometidoDelMes(quien);
-  const proyectado=getSaldoProyectado(quien);
-  const ingresosMes=getIngresosDelMes(quien);
-  const cuotas=getCuotasComprometidasDelMes(quien);
-  const reembolsos=getReembolsosPendientes(quien);
-  let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
-    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Disponible ahora</div>
-    <div style="font-size:28px;font-weight:600;color:var(--p);margin-bottom:2px">${fmxn(disponible)}</div>
-    <div style="font-size:11px;color:var(--muted)">${ingresosMes.length} fuente${ingresosMes.length!==1?'s':''} de ingreso este mes</div>`;
-  if(comprometido>0){
-    html+=`<div onclick="abrirDetalleComprometido()" style="border-top:1px solid var(--border);margin-top:12px;padding-top:10px;cursor:pointer">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:11px;color:var(--muted)">⏳ Comprometido</span>
-        <span style="font-size:12px;color:var(--s);font-weight:600">${fmxn(comprometido)} ›</span>
-      </div>
-    </div>
-    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:baseline">
-      <span style="font-size:11px;color:var(--muted)">Disponible después de pendientes</span>
-      <span style="font-size:16px;color:var(--text);font-weight:600">${fmxn(proyectado)}</span>
+  const objetivo=getObjetivoMes();
+  const gastado=getGastadoMes();
+  const disponible=Math.max(0,objetivo-gastado);
+  const excedido=gastado>objetivo&&objetivo>0;
+  const pct=objetivo>0?Math.min(Math.round((gastado/objetivo)*100),100):0;
+  const pctColor=pct>=90?'var(--danger)':pct>=70?'var(--s)':'var(--success)';
+
+  // Sin objetivo configurado
+  if(!objetivo){
+    el.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Define tu objetivo mensual para ver cuánto te queda por gastar</div>
+      <button onclick="abrirEditarObjetivo()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:10px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer;font-weight:600">Definir objetivo del mes</button>
     </div>`;
+    return;
   }
-  html+=`<div style="display:flex;gap:8px;margin-top:12px">
-    <button onclick="abrirRegistrarIngreso()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--text);cursor:pointer">+ Ingreso</button>
+
+  let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:3px">${excedido?'Excedido':'Disponible este mes'}</div>
+        <div style="font-size:30px;font-weight:700;color:${excedido?'var(--danger)':'var(--p)'};font-family:sans-serif">${excedido?'-'+fmxn(gastado-objetivo):fmxn(disponible)}</div>
+      </div>
+      <button onclick="abrirEditarObjetivo()" style="background:none;border:0.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-family:sans-serif;color:var(--muted);cursor:pointer;flex-shrink:0;margin-top:4px">Objetivo: ${fmxn(objetivo)} ✏️</button>
+    </div>
+    <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
+      <div style="width:${pct}%;background:${pctColor};height:8px;border-radius:6px;transition:width .4s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:12px">
+      <span>Gastado: ${fmxn(gastado)} (${pct}%)</span>
+      <span>Objetivo: ${fmxn(objetivo)}</span>
+    </div>`;
+
+  // Desglose colapsable
+  const gastosReales=gastosMes.reduce((s,g)=>s+(g.monto||0),0);
+  const cuotasMes=getTDCMovs().filter(m=>tdcEnMesActual(m.fechaVence));
+  const totalCuotas=cuotasMes.reduce((s,m)=>s+(m.montoCuota||0),0);
+  const totalFijosPend=gastado-gastosReales-totalCuotas;
+
+  html+=`<details style="margin-bottom:12px">
+    <summary style="font-size:12px;color:var(--muted);font-family:sans-serif;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
+      <span>Ver desglose</span><span>▾</span>
+    </summary>
+    <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
+        <span style="color:var(--muted)">Gastos registrados</span>
+        <span style="color:var(--text)">${fmxn(gastosReales)}</span>
+      </div>
+      ${totalCuotas>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
+        <span style="color:var(--muted)">Cuotas TDC del mes (${cuotasMes.length})</span>
+        <span style="color:var(--acc)">${fmxn(totalCuotas)}</span>
+      </div>`:''}
+      ${totalFijosPend>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
+        <span style="color:var(--muted)">Gastos fijos pendientes</span>
+        <span style="color:var(--muted)">${fmxn(totalFijosPend)}</span>
+      </div>`:''}
+    </div>
+  </details>`;
+
+  html+=`<div style="display:flex;gap:8px">
+    <button onclick="abrirRegistrarIngreso()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">+ Ingreso</button>
+    <button onclick="abrirDetalleComprometido()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">⏳ TDC del mes</button>
   </div></div>`;
   el.innerHTML=html;
+}
+function abrirEditarObjetivo(){
+  const actual=getObjetivoMes();
+  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:6px">Objetivo del mes</div>
+    <div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:16px;line-height:1.5">¿Cuánto quieres gastar este mes como máximo? Este número es tu límite, no tu ingreso.</div>
+    <div class="form-group"><label class="form-label">Objetivo mensual</label>
+    <input type="number" class="form-input amount-input" id="inp-objetivo-mes" placeholder="ej. 12000" inputmode="decimal" value="${actual||''}"></div>
+    <button onclick="submitObjetivoMes()" class="btn-submit">Guardar objetivo</button>`;
+  mostrarModalGenerico(html);
+  setTimeout(()=>document.getElementById('inp-objetivo-mes')?.focus(),300);
+}
+function submitObjetivoMes(){
+  const val=parseFloat(document.getElementById('inp-objetivo-mes')?.value);
+  if(!val||val<=0){showToast('Ingresa un monto válido');return;}
+  setObjetivoMes(val);
+  cerrarModalGenerico();
+  renderSaldoCard();
+  showToast('Objetivo guardado ✓');
 }
 function abrirDetalleComprometido(){
   const quien=currentUser?.name||userConfig?.nombre||'Yo';
@@ -2524,6 +2578,49 @@ function getReembolsosPendientes(quien){
 }
 function getSaldoDisponible(quien){return getSaldoReal(quien);}
 function getSaldoProyectado(quien){return getSaldoReal(quien)-getComprometidoDelMes(quien);}
+
+// ── Presupuesto mensual por cuenta ──
+function objetivoKey(){return 'pb_objetivo_mes_'+currentAcct;}
+function getObjetivoMes(){
+  const key=objetivoKey();
+  const guardado=parseFloat(localStorage.getItem(key));
+  if(!isNaN(guardado)&&guardado>0)return guardado;
+  // Fallback: ingreso configurado en perfil
+  const ingreso=esHogar(currentAcct)?(gls('casa_config')?.ingreso||0):(userConfig?.ingreso||0);
+  return ingreso||0;
+}
+function setObjetivoMes(valor){
+  localStorage.setItem(objetivoKey(),String(Math.round(valor*100)/100));
+}
+function getGastadoMes(){
+  // Gastos reales del mes (en memoria)
+  const gastosReales=gastosMes.reduce((s,g)=>s+(g.monto||0),0);
+  // Cuotas TDC que vencen este mes (pagadas o no — ya están comprometidas)
+  const cuotasTDC=getTDCMovs().filter(m=>tdcEnMesActual(m.fechaVence)).reduce((s,m)=>s+(m.montoCuota||0),0);
+  // Gastos fijos del mes (los que aplican este mes según periodicidad)
+  const fijosActivos=getFijosDelMes().filter(f=>fijoAplicaEsteMes(f));
+  const totalFijos=fijosActivos.reduce((s,f)=>s+(parseFloat(f.monto)||0),0);
+  // Evitar doble conteo: gastos ya registrados con origen='fijo' ya están en gastosMes
+  // Solo sumar fijos que NO se hayan registrado aún este mes
+  const fijosYaRegistrados=new Set(gastosMes.filter(g=>g.origen==='fijo').map(g=>g.nota?.split(' ')[0]||''));
+  const fijosPendientes=fijosActivos.filter(f=>!fijosYaRegistrados.has((f.nombre||f.l||'').split(' ')[0]));
+  const totalFijosPendientes=fijosPendientes.reduce((s,f)=>s+(parseFloat(f.monto)||0),0);
+  return gastosReales+cuotasTDC+totalFijosPendientes;
+}
+function fijoAplicaEsteMes(fijo){
+  // Verifica si un gasto fijo aplica en el mes actual según su periodicidad
+  const hoy=new Date();
+  const mesActual=hoy.getMonth();
+  const periodo=parseInt(fijo.PERIODO_MESES||1)||1;
+  if(periodo<=1)return true;
+  // Para gastos bimestrales/trimestrales, verificar si el mes actual es un mes de pago
+  if(fijo.ultimoPago){
+    const ultimoPago=new Date(fijo.ultimoPago+'T12:00:00');
+    const mesesDesde=Math.round((hoy-ultimoPago)/(1000*60*60*24*30));
+    return mesesDesde>=periodo;
+  }
+  return true; // Si no hay registro previo, asumir que aplica
+}
 
 // ═══ QUIÉN PAGA — selector independiente de quién registra ═══
 function getQuienRoster(){
