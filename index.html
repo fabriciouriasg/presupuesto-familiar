@@ -4077,6 +4077,76 @@ function cerrarRecordatorio(key){localStorage.setItem(key,'1');document.getEleme
 // CIERRE DE MES
 // ════════════════════════════════════════════════════════════
 function checkCierreMes(){const hoy=new Date();if(hoy.getDate()!==1)return;const mesAnterior=new Date(hoy.getFullYear(),hoy.getMonth()-1,1);const keyMes=`pb_cierre_${mesAnterior.getFullYear()}_${mesAnterior.getMonth()}_${currentAcct}`;if(localStorage.getItem(keyMes))return;mostrarCierreMes(mesAnterior,keyMes);}
+function checkFuentesIngreso(){
+  // Revisa si alguna fuente periódica tiene proximaFecha <= hoy y no ha sido confirmada
+  const data=getCuentaStore();
+  const fuentes=(data.fuentesIngreso||[]).filter(f=>f.activa!==false&&f.periodicidad&&f.monto>0);
+  if(!fuentes.length)return;
+  const hoy=today();
+  // Buscar la primera fuente pendiente (no mostrar todas a la vez)
+  const pendiente=fuentes.find(f=>{
+    if(!f.proximaFecha)return false;
+    // Ya registrada hoy o en el periodo actual
+    if(f.ultimoRegistro&&f.ultimoRegistro>=f.proximaFecha)return false;
+    // La proxima fecha ya llegó o ya pasó
+    return f.proximaFecha<=hoy;
+  });
+  if(!pendiente)return;
+  // Evitar mostrar más de una vez por día
+  const keyVisto=`pb_fuente_popup_${currentAcct}_${pendiente.id}_${hoy}`;
+  if(localStorage.getItem(keyVisto))return;
+  localStorage.setItem(keyVisto,'1');
+  _mostrarPopupFuente(pendiente);
+}
+function _mostrarPopupFuente(fuente){
+  const monto=fuente.monto||0;
+  const nombre=escapeHtml(fuente.nombre||'Ingreso');
+  const html=`
+    <div style="text-align:center;padding-bottom:14px;border-bottom:1px solid var(--border)">
+      <div style="font-size:28px;margin-bottom:6px">💰</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif">${nombre}</div>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-top:4px">¿Ya recibiste tu ingreso de ${fmxn(monto)}?</div>
+    </div>
+    <div style="padding-top:14px">
+      <button onclick="
+        cerrarModalGenerico();
+        submitRegistrarIngreso_fuente('${fuente.id}',${monto});
+      " style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600;margin-bottom:8px">
+        Sí, registrar $${fmxn(monto)}
+      </button>
+      <button onclick="
+        cerrarModalGenerico();
+        abrirRegistrarIngreso_prefuente('${fuente.id}');
+      " style="width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer;margin-bottom:8px">
+        Sí, pero con monto diferente
+      </button>
+      <button onclick="cerrarModalGenerico()" style="width:100%;background:none;border:none;padding:10px;font-size:13px;font-family:sans-serif;color:var(--muted);cursor:pointer">
+        Aún no lo he recibido
+      </button>
+    </div>`;
+  mostrarModalGenerico(html);
+}
+function submitRegistrarIngreso_fuente(fuenteId,monto){
+  const data=getCuentaStore();
+  const fuente=(data.fuentesIngreso||[]).find(f=>f.id===fuenteId);
+  const nombre=fuente?fuente.nombre:'Ingreso';
+  if(getCuentas().length>0){
+    abrirRepartidorIngreso(monto,fuenteId,nombre);
+  }else{
+    registrarIngresoFuente(fuenteId,monto,today(),'');
+    renderSaldoCard();
+    showToast('Ingreso de '+fmxn(monto)+' registrado ✓');
+  }
+}
+function abrirRegistrarIngreso_prefuente(fuenteId){
+  _fuenteSeleccionada=fuenteId;
+  abrirRegistrarIngreso();
+  // Pre-seleccionar la fuente en el modal
+  setTimeout(()=>{
+    const el=document.querySelector(`#modal-generico-body [data-fuente="${fuenteId}"]`);
+    if(el)selFuenteIngreso(el);
+  },100);
+}
 function mostrarCierreMes(mesAnterior,keyMes){const mesNombre=MONTHS[mesAnterior.getMonth()]+' '+mesAnterior.getFullYear();const fijos=getFijosDelMes();const ingreso=esHogar(currentAcct)?(gls('casa_config')?.ingreso||44500):(userConfig?.ingreso||0);const totalFijos=fijos.reduce((s,f)=>s+(f.monto||0),0);const extraIngresos=gls(`pb_ingresos_extra_${currentAcct}`)||[];const totalExtra=extraIngresos.filter(i=>i.fecha&&i.fecha.startsWith(mesAnterior.getFullYear()+'-'+String(mesAnterior.getMonth()+1).padStart(2,'0'))).reduce((s,i)=>s+(i.monto||0),0);const ingresoTotal=ingreso+totalExtra;const totalVar=gastosMes.reduce((s,g)=>s+g.monto,0);const sobrante=ingresoTotal-totalFijos-totalVar;const metas=gls(`pb_metas_${currentAcct}`)||[];const retosActivos=metas.filter(m=>m.tipo==='reto'&&m.activo);document.getElementById('cierre-content').innerHTML=`<div style="font-size:20px;color:var(--p);margin-bottom:6px">Cierre de ${mesNombre}</div><div style="font-size:12px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:20px">Completa este proceso para continuar</div><div class="total-card" style="margin-bottom:20px"><div class="tc-row"><span class="tc-label">Ingreso base</span><span class="tc-val">${fmxn(ingreso)}</span></div>${totalExtra>0?`<div class="tc-row"><span class="tc-label">Ingresos extra</span><span class="tc-val ok">+ ${fmxn(totalExtra)}</span></div>`:''}<div class="tc-row"><span class="tc-label">Total ingreso</span><span class="tc-val">${fmxn(ingresoTotal)}</span></div><div class="tc-row"><span class="tc-label">Gastos fijos</span><span class="tc-val neg">− ${fmxn(totalFijos)}</span></div><div class="tc-row"><span class="tc-label">Gastos variables</span><span class="tc-val neg">− ${fmxn(totalVar)}</span></div><div class="tc-div"></div><div class="tc-row"><span class="tc-label">Sobrante del mes</span><span class="tc-val ${sobrante>=0?'ok':'neg'}">${fmxn(sobrante)}</span></div></div>${(()=>{const _al=generarAlertasCierre(gastosMes);return _al.length?"<div style=\"margin:12px 0\">"+_al.map(a=>"<div style=\"background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;gap:8px;align-items:flex-start\"><span style=\"font-size:14px\">"+a.emoji+"</span><span style=\"font-size:12px;color:var(--text);font-family:sans-serif;line-height:1.4\">"+a.texto+"</span></div>").join("")+"</div>":"";})()}${sobrante>0?`<div style="font-size:13px;font-weight:600;color:var(--p);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">¿Qué haces con el sobrante?</div><div id="sobrante-metas"></div><button class="btn-secondary" onclick="asignarSobranteLibre(${sobrante})" style="margin-bottom:16px">Dejar libre (no asignar)</button>`:''}${retosActivos.length?`<div style="font-size:13px;font-weight:600;color:var(--p);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Revisión de retos</div>${retosActivos.map(r=>{const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});const gastado=totals[r.categoria]||0;const logrado=gastado<=r.meta;return `<div class="meta-card" style="margin-bottom:8px"><div class="mc-top"><span class="mc-emoji">${r.emoji}</span><div class="mc-info"><div class="mc-name">${escapeHtml(r.nombre)}</div><div class="mc-sub">Meta: ${fmxn(r.meta)} · Gastado: ${fmxn(gastado)}</div></div><span class="mc-badge ${logrado?'badge-ok':'badge-over'}">${logrado?'✓ Logrado':'✗ Fallido'}</span></div></div>`;}).join('')}`:''}
     <button class="btn-submit" onclick="completarCierre('${keyMes}')">Completar cierre del mes</button>`;
   if(sobrante>0){const metasEvento=metas.filter(m=>m.tipo==='evento'&&m.activo);const cont=document.getElementById('sobrante-metas');if(cont&&metasEvento.length){cont.innerHTML=metasEvento.map(m=>`<div class="meta-card" style="margin-bottom:8px;cursor:pointer" onclick="asignarSobrante('${m.id}',${sobrante})"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${escapeHtml(m.nombre)}</div><div class="mc-sub">Asignar ${fmxn(sobrante)} a esta meta</div></div><span style="font-size:18px;color:var(--s)">→</span></div></div>`).join('');}}
