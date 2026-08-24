@@ -1004,7 +1004,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 78';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 79';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1841,7 +1841,7 @@ function _renderHistorialContent(){
   // No viven en gastosMes (no son gastos todavía), pero cuentan en el presupuesto
   const hoyMes=tdcMesActual();
   const cuotasPendientesMes=getTDCMovs().filter(m=>
-    !m.pagada&&m.fechaVence&&m.fechaVence.startsWith(hoyMes)
+    !m.pagada&&!m.idGasto&&m.fechaVence&&m.fechaVence.startsWith(hoyMes)
   );
   cuotasPendientesMes.forEach(c=>{
     const catId=c.categoria||'buffer';
@@ -2607,7 +2607,7 @@ function PROJ_renderMes(data){
     const clr=neto>=0?'var(--success,#16a34a)':'var(--danger,#dc2626)';
     return `<div onclick="PROJ_irA(${i})" style="flex-shrink:0;min-width:54px;text-align:center;cursor:pointer;padding:5px 6px;border-radius:8px;border:0.5px solid ${on?'var(--acc)':'var(--border)'};background:${on?'rgba(161,58,30,0.08)':'var(--card)'}">
       <div style="font-size:10px;color:${on?'var(--acc)':'var(--muted)'};font-family:'Helvetica Neue',sans-serif">${mm.corto}</div>
-      <div style="font-size:11px;font-weight:500;color:${clr};font-family:'Helvetica Neue',sans-serif;margin-top:1px">${neto>=0?'+':'-'}$${Math.abs(Math.round(neto/1000))}k</div>
+      <div style="font-size:10px;font-weight:500;color:${clr};font-family:'Helvetica Neue',sans-serif;margin-top:1px">${neto>=0?'+':'-'}$${Math.abs(Math.round(neto)).toLocaleString('es-MX')}</div>
     </div>`;
   }).join('');
 
@@ -2622,8 +2622,8 @@ function PROJ_renderMes(data){
 
   // Neto
   const netoEl=document.getElementById('proj-neto');
-  const fmtK=v=>{const a=Math.abs(v);return (v>=0?'+':'-')+'$'+(a>=10000?(a/1000).toFixed(0)+'k':a.toLocaleString('es-MX'));};
-  const fmtP=v=>{const a=Math.abs(v);return '$'+(a>=10000?(a/1000).toFixed(0)+'k':a.toLocaleString('es-MX'));};
+  const fmtK=v=>{const a=Math.abs(v);return (v>=0?'+':'-')+'$'+a.toLocaleString('es-MX');};
+  const fmtP=v=>{const a=Math.abs(v);return '$'+a.toLocaleString('es-MX');};
   netoEl.textContent=fmtK(neto);
   netoEl.style.color=neto>=0?'var(--success,#16a34a)':'var(--danger,#dc2626)';
 
@@ -3923,6 +3923,7 @@ let _editGastoActual=null;
 function abrirEditGastoHistorial(encoded){
   let gasto;
   try{gasto=JSON.parse(decodeURIComponent(escape(atob(encoded))));}catch(e){try{gasto=JSON.parse(atob(encoded));}catch(e2){showToast('Error al abrir editor');return;}}
+  if(!gasto||(!gasto.rowIndex&&gasto.rowIndex!==0)){showToast('No se puede editar este gasto');return;}
   _editGastoActual=gasto;
 
   // Llenar campos
@@ -5150,8 +5151,9 @@ async function renderSeccionTarjetas(){
       const cfg=tarjetasCfg.find(t=>normNombrePago(t.nombre)===normNombrePago(tk.nombre));
       const emoji=cfg?.emoji||'💳';
       const este=tk.cuotas.filter(c=>c.fechaVence&&c.fechaVence.startsWith(hoy));
-      const totalEste=este.reduce((s,c)=>s+c.montoCuota,0);
-      const pagadoEste=este.filter(c=>c.pagada||c.pagoParcial>0).reduce((s,c)=>s+(c.pagada?c.montoCuota:c.pagoParcial),0);
+      const totalEste=este.filter(c=>!c.pagada&&!c.pagoParcial).reduce((s,c)=>s+c.montoCuota,0);
+      // Pagado este mes: cuotas cuyo fechaPago cae en el mes actual (independiente de cuándo vencen)
+      const pagadoEste=tk.cuotas.filter(c=>(c.pagada||c.pagoParcial>0)&&c.fechaPago&&c.fechaPago.startsWith(hoy)).reduce((s,c)=>s+(c.pagada?c.montoCuota:c.pagoParcial),0);
       const totalPend=tk.cuotas.filter(c=>!c.pagada).reduce((s,c)=>s+c.montoCuota,0);
       const vencidas=tk.cuotas.filter(c=>!c.pagada&&c.pagoParcial===0&&c.fechaVence&&c.fechaVence<hoy+'-01');
       const activas=tk.cuotas.filter(c=>!c.pagada&&c.fechaVence);
@@ -5186,13 +5188,16 @@ async function renderSeccionTarjetas(){
         const esEste=cuotaShow.fechaVence&&cuotaShow.fechaVence.startsWith(hoy);
         const opacidad=(!esEste&&!esVencida)?'opacity:0.6;':'';
         const colorMonto=esVencida||esEste?'var(--s)':'var(--muted)';
-        const labelEstado=esVencida?'vencida':esEste?'pendiente':'próx. '+tdcMesLabel(cuotaShow.fechaVence?.substring(0,7)||'');
+        // Formato fecha vence: "Vence Sep 30" — sin año, sin redundancia
+        const _fv=cuotaShow.fechaVence||'';
+        const _fvLabel=_fv?'Vence '+tdcMesLabel(_fv.substring(0,7)).replace(/\s\d{4}/,'')+' '+parseInt(_fv.substring(8,10)):'';
+        const labelEstado=esVencida?'vencida':esEste?'pendiente':_fvLabel;
         html+=`<div onclick="abrirPagarCuota('${cuotaShow.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:0.5px solid var(--border);cursor:pointer;${opacidad}">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               ${escapeHtml(comp.desc)} <span style="font-size:11px;color:var(--muted)">${cuotaShow.cuota}/${comp.totalCuotas}</span>
             </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(comp.categoria||'')}${comp.categoria&&cuotaShow.fechaVence?' · ':''}${cuotaShow.fechaVence?'vence '+cuotaShow.fechaVence:''}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(comp.categoria||'')}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:13px;font-weight:500;color:${colorMonto}">${fmxn(cuotaShow.montoCuota)}</div>
