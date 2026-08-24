@@ -1004,7 +1004,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 77';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 78';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1869,7 +1869,7 @@ function _renderHistorialContent(){
         </div>
       </div>
       <div class="historial-mes-body" style="display:none" id="mes-actual-body">
-        ${(gastosMes.length||cuotasPendientesMes.length) ? buildCatSummary(catTotals)+buildCatDropdowns(gastosMes,cuotasPendientesMes) : '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:sans-serif">Sin gastos este mes aún</div>'}
+        ${(gastosMes.length||cuotasPendientesMes.length) ? buildCatDropdowns(gastosMes,cuotasPendientesMes) : '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:sans-serif">Sin gastos este mes aún</div>'}
       </div>
     </div>`;
 
@@ -2877,7 +2877,6 @@ async function loadHistorialMeses(){
           </div>
         </div>
         <div class="historial-mes-body" style="display:none">
-          ${buildCatSummary(catTotals)}
           ${buildCatDropdowns(g.gastos)}
         </div>
       </div>`;
@@ -3332,7 +3331,7 @@ function toggleHistorialMesLocal(card){
   const isOpen=body.style.display!=='none';
   if(!isOpen&&body.id==='mes-actual-body'&&gastosMes.length&&body.textContent.includes('Sin gastos')){
     const ct={};gastosMes.forEach(g=>{ct[g.categoria]=(ct[g.categoria]||0)+g.monto;});
-    body.innerHTML=buildCatSummary(ct)+buildCatDropdowns(gastosMes);
+    body.innerHTML=buildCatDropdowns(gastosMes);
   }
   body.style.display=isOpen?'none':'block';
   if(arrow)arrow.style.transform=isOpen?'rotate(0deg)':'rotate(90deg)';
@@ -3352,7 +3351,7 @@ async function toggleHistorialMes(card,mesNombre,gastos){
       const gs=res.ok?res.gastos.map(g=>({...g,fecha:String(g.fecha||'').split('T')[0]})):[];
       if(!gs.length){body.innerHTML='<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">Sin gastos este mes</div>';return;}
       const ct={};gs.forEach(g=>{ct[g.categoria]=(ct[g.categoria]||0)+g.monto;});
-      body.innerHTML=buildCatSummary(ct)+buildCatDropdowns(gs);
+      body.innerHTML=buildCatDropdowns(gs);
     }catch(e){body.innerHTML='<div style="padding:12px;color:var(--muted);font-size:12px">Error al cargar</div>';}
   }
 }
@@ -3752,35 +3751,8 @@ async function crearSheetManual(){const btn=document.getElementById('btn-crear-s
 // ════════════════════════════════════════════════════════════
 // HISTORIAL — helpers de sumario y dropdowns
 // ════════════════════════════════════════════════════════════
-function buildCatSummary(catTotals){
-  const cats=getCats();
-  const rows=cats.map(c=>{
-    const spent=catTotals[c.id]||0;if(spent===0)return null;
-    const lim=budgets[c.id]||c.b||0;const rem=lim-spent;
-    const pct=lim>0?Math.min((spent/lim)*100,100):0;
-    const fillColor=lim>0&&spent>lim?'var(--danger)':lim>0&&spent>lim*0.8?'var(--miel)':'var(--s)';
-    const remColor=rem<0?'color:var(--danger)':'color:var(--success)';
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:'Helvetica Neue',sans-serif">
-      <span style="font-size:16px;width:22px;text-align:center;flex-shrink:0">${c.e}</span>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-          <span style="font-weight:600;color:var(--text)">${escapeHtml(c.l)}</span>
-          <span style="font-weight:700;color:var(--acc)">${fmxn(spent)}</span>
-        </div>
-        ${lim>0?`<div style="height:4px;background:rgba(84,41,22,0.08);border-radius:2px;overflow:hidden;margin-bottom:3px"><div style="height:100%;border-radius:2px;background:${fillColor};width:${pct.toFixed(1)}%"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
-          <span>Límite: ${fmxn(lim)}</span>
-          <span style="${remColor}">Rem: ${rem<0?'−'+fmxn(Math.abs(rem)):fmxn(rem)}</span>
-        </div>`:`<div style="font-size:10px;color:var(--muted)">Sin límite asignado</div>`}
-      </div>
-    </div>`;
-  }).filter(Boolean);
-  if(!rows.length)return '';
-  return `<div style="padding:14px;border-bottom:1px solid var(--border)">
-    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Por categoría</div>
-    ${rows.join('')}
-  </div>`;
-}
+// buildCatSummary mantenida como alias vacío para compatibilidad con meses anteriores
+function buildCatSummary(catTotals){return '';}
 
 function makeBtnEdit(encoded){
   if(!encoded)return '';
@@ -3829,50 +3801,104 @@ function renderGrupoTicketInline(gr,dropId){
 }
 
 function buildCatDropdowns(gastos,cuotasPend){
-  // Vista unificada: tickets integrados en su categoría, cronológico inverso, barra de presupuesto.
-  // cuotasPend: cuotas TDC pendientes del mes — se inyectan como filas virtuales con estado pendiente
+  // Rev 77: función unificada — barra + gastos desplegables en una sola fila por categoría.
+  // Orden: % consumido desc, categorías "mayoría fija" (>70% monto con origen=fijo) al final.
+  // Sin $0 (salvo que haya cuotas TDC). TDC consolidada como entrada propia.
   const suffix=Math.random().toString(36).substr(2,5);
   const byCat={};
+
+  // Agrupar gastos normales
   gastos.forEach(g=>{
     const cat=g.grupoId?g.catPrincipal||g.categoria:g.categoria;
-    if(!byCat[cat])byCat[cat]=[];
+    if(!byCat[cat])byCat[cat]={items:[],montoFijo:0,montoTotal:0};
     if(g.grupoId){
-      const ya=byCat[cat].find(x=>x._esGrupoId===g.grupoId);
+      const ya=byCat[cat].items.find(x=>x._esGrupoId===g.grupoId);
       if(!ya){
         const lin=gastos.filter(x=>x.grupoId===g.grupoId);
-        byCat[cat].push({_esGrupo:true,_esGrupoId:g.grupoId,comercio:g.comercio||'Ticket',fecha:g.fecha,catPrincipal:g.catPrincipal||g.categoria,totalGrupo:lin.reduce((s,x)=>s+x.monto,0),lineas:lin,quien:g.quien});
+        const tot=lin.reduce((s,x)=>s+x.monto,0);
+        byCat[cat].items.push({_esGrupo:true,_esGrupoId:g.grupoId,comercio:g.comercio||'Ticket',fecha:g.fecha,catPrincipal:g.catPrincipal||g.categoria,totalGrupo:tot,lineas:lin,quien:g.quien});
+        byCat[cat].montoTotal+=tot;
+        if(g.origen==='fijo')byCat[cat].montoFijo+=tot;
       }
-    }else{byCat[cat].push(g);}
+    }else{
+      byCat[cat].items.push(g);
+      byCat[cat].montoTotal+=g.monto||0;
+      if(g.origen==='fijo')byCat[cat].montoFijo+=g.monto||0;
+    }
   });
-  // Inyectar cuotas TDC pendientes como items virtuales
-  (cuotasPend||[]).forEach(c=>{
-    const catId=c.categoria||'buffer';
-    if(!byCat[catId])byCat[catId]=[];
-    byCat[catId].push({_esTDC:true,id:c.id,nota:c.descripcion+' '+c.cuota+'/'+c.totalCuotas,
-      monto:c.montoCuota,fecha:c.fechaVence,pago:c.tarjeta,categoria:catId,quien:c.quien,rowIndex:null});
-  });
-  const catEntries=Object.entries(byCat).map(([catId,items])=>({catId,items,total:items.reduce((s,i)=>s+(i._esGrupo?i.totalGrupo:i.monto),0)})).sort((a,b)=>b.total-a.total);
+
+  // Inyectar cuotas TDC como categoría consolidada
+  const cuotasMesArr=cuotasPend||[];
+  if(cuotasMesArr.length){
+    const catTDC='__tdc__';
+    if(!byCat[catTDC])byCat[catTDC]={items:[],montoFijo:0,montoTotal:0};
+    cuotasMesArr.forEach(c=>{
+      byCat[catTDC].items.push({_esTDC:true,id:c.id,nota:c.descripcion+' '+c.cuota+'/'+c.totalCuotas,
+        monto:c.montoCuota,fecha:c.fechaVence,pago:c.tarjeta,categoria:catTDC,quien:c.quien,rowIndex:null});
+      byCat[catTDC].montoTotal+=c.montoCuota;
+    });
+  }
+
+  // Calcular % consumido y clasificar fijas/normales
+  const entradas=Object.entries(byCat).map(([catId,data])=>{
+    const lim=(budgets&&budgets[catId])||getCat(catId).b||0;
+    const pctConsumo=lim>0?(data.montoTotal/lim)*100:0;
+    const esFija=catId!=='__tdc__'&&data.montoTotal>0&&(data.montoFijo/data.montoTotal)>0.7;
+    return{catId,items:data.items,total:data.montoTotal,lim,pctConsumo,esFija};
+  }).filter(e=>e.total>0);
+
+  // Ordenar: normales por % desc, fijas al final por % desc
+  const normales=entradas.filter(e=>!e.esFija).sort((a,b)=>b.pctConsumo-a.pctConsumo);
+  const fijas=entradas.filter(e=>e.esFija).sort((a,b)=>b.pctConsumo-a.pctConsumo);
+  const ordenadas=[...normales,...fijas];
+
+  if(!ordenadas.length)return '';
+
   let html='<div style="padding:6px 14px 14px">';
-  catEntries.forEach(({catId,items,total})=>{
-    const cat=getCat(catId);
+  ordenadas.forEach(({catId,items,total,lim,pctConsumo,esFija})=>{
+    const esTDC=catId==='__tdc__';
+    const cat=esTDC?{e:'💳',l:'Tarjetas'}:getCat(catId);
     const dropId='drop-'+suffix+'-'+catId;
-    const lim=budgets&&budgets[catId]?budgets[catId]:0;
-    const pct=lim>0?Math.min(Math.round(total/lim*100),100):0;
+    const pct=lim>0?Math.min(Math.round(pctConsumo),100):0;
     const over=lim>0&&total>lim;
-    const color=over?'var(--danger,#dc2626)':'var(--acc)';
-    const itemsOrd=[...items].sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);});
-    html+=`<div style="margin-bottom:6px;border:0.5px solid var(--border);border-radius:12px;overflow:hidden">`;
+    const colorMonto=over?'var(--danger)':'var(--acc)';
+    const colorBarra=over?'var(--danger)':pctConsumo>80?'var(--miel)':'var(--s)';
+    const itemsOrd=esTDC?items:[...items].sort((a,b)=>{
+      const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;
+      return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);
+    });
+
+    html+=`<div style="margin-bottom:6px;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;${esFija?'opacity:0.75':''}">`;
+
+    // ── Encabezado: barra + toggle ──
     html+=`<div onclick="toggleCatDrop('${dropId}')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer">`;
-    html+=`<span style="font-size:18px">${cat.e}</span>`;
-    html+=`<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(cat.l)}</span><span style="font-size:13px;font-weight:600;color:${color}">${fmxn(total)}</span></div>`;
-    if(lim>0){html+=`<div style="display:flex;justify-content:space-between;margin-top:2px"><span style="font-size:10px;color:var(--muted)">Lím: ${fmxn(lim)}</span><span style="font-size:10px;color:${color}">Rem: ${fmxn(lim-total)}</span></div><div style="height:3px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div></div>`;}
-    else{html+=`<div style="font-size:10px;color:var(--muted);margin-top:2px">${items.length} gasto${items.length>1?'s':''}</div>`;}
-    html+=`</div><span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s">›</span></div>`;
+    html+=`<span style="font-size:18px;flex-shrink:0">${cat.e}</span>`;
+    html+=`<div style="flex:1;min-width:0">`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:3px">`;
+    html+=`<span style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(cat.l)}</span>`;
+    html+=`<span style="font-size:13px;font-weight:600;color:${colorMonto}">${fmxn(total)}</span>`;
+    html+=`</div>`;
+    if(esTDC){
+      const pagadas=items.filter(i=>i._esTDC&&false).length; // siempre 0 aquí — pendientes
+      html+=`<div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:100%;background:var(--acc);border-radius:2px;opacity:0.4"></div></div>`;
+      html+=`<div style="font-size:10px;color:var(--muted)">Comprometido este mes · ${items.length} cuota${items.length!==1?'s':''}</div>`;
+    }else if(lim>0){
+      html+=`<div style="height:3px;background:rgba(84,41,22,0.08);border-radius:2px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:${pct}%;background:${colorBarra};border-radius:2px"></div></div>`;
+      html+=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">`;
+      html+=`<span>Lím: ${fmxn(lim)}</span><span style="color:${over?'var(--danger)':'var(--success)'}">Rem: ${over?'−':''} ${fmxn(Math.abs(lim-total))}</span>`;
+      html+=`</div>`;
+    }else{
+      html+=`<div style="font-size:10px;color:var(--muted)">${items.length} gasto${items.length!==1?'s':''}</div>`;
+    }
+    html+=`</div>`;
+    html+=`<span id="arr-${dropId}" style="color:var(--muted);font-size:14px;transition:transform 0.2s;flex-shrink:0">›</span>`;
+    html+=`</div>`;
+
+    // ── Detalle desplegable ──
     html+=`<div id="${dropId}" style="display:none;background:var(--card)">`;
     itemsOrd.forEach(item=>{
       if(item._esGrupo){html+=renderGrupoTicketInline(item,dropId);return;}
       if(item._esTDC){
-        // Cuota TDC pendiente — fila virtual, tap abre modal de pago
         html+=`<div onclick="abrirPagarCuota('${item.id}')" style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:0.5px solid var(--border);cursor:pointer">`;
         html+=`<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.nota)}</div><div style="font-size:10px;color:var(--muted);margin-top:1px">${item.fecha}${item.pago?' · 💳 '+escapeHtml(item.pago):''}</div></div>`;
         html+=`<div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span style="font-size:10px;color:var(--s)">Pendiente</span><span style="font-size:13px;font-weight:700;color:var(--s)">${fmxn(item.monto)}</span></div>`;
@@ -3891,7 +3917,6 @@ function buildCatDropdowns(gastos,cuotasPend){
   html+='</div>';
   return html;
 }
-
 
 // ── Editar gasto desde historial o gastos recientes ──
 let _editGastoActual=null;
