@@ -1004,7 +1004,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 75';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 76';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -3102,8 +3102,26 @@ async function submitGasto(){
   const amount=parseFloat(document.getElementById('inp-amount').value);const desc=document.getElementById('inp-desc').value.trim();const note=document.getElementById('inp-note').value.trim();const fecha=document.getElementById('inp-fecha').value;const catEl=document.querySelector('.cat-chip-m.selected');const pagoEl=document.querySelector('#pago-grid .pago-chip.selected');
   if(!amount||amount<=0){showToast('Ingresa un monto válido');return;}if(!desc){showToast('Agrega una descripción');return;}if(!catEl){showToast('Selecciona una categoría');return;}if(!fecha){showToast('Selecciona una fecha');return;}
   const isCasa=esHogar(currentAcct);const quienElM=document.querySelector('#modal-quien-grid .pago-chip.selected');const quien=quienElM?.dataset.quien||currentUser?.name||userConfig?.nombre||'Usuario';const pago=pagoEl?.dataset.pago||'';
-  const gasto={localId:uid(),account:currentAcct,amount,categoria:catEl.dataset.cat,fecha,quien,nota:desc+(note?' · '+note:''),pago,userId:isCasa?'casa':currentAcct,origen:_origenCaptura||"manual"};
   const btn=document.getElementById('btn-submit-gasto');btn.disabled=true;btn.textContent='Guardando...';
+  // Rev 75: misma lógica TDC que submitDrawer
+  const mesesCC=getMesesCreditoActivos();const tarjetaCC=getMesesCreditoTarjeta();
+  dbgLog('info','TDC submitGasto','tarjetaCC='+tarjetaCC+' mesesCC='+mesesCC+' chip='+pago+' tipo='+pagoEl?.dataset.tipo);
+  if(tarjetaCC&&mesesCC>=1){
+    const t=buscarTarjetaPorNombre(tarjetaCC);
+    if(t){
+      await registrarCompraTarjeta(t.id,quien,amount,mesesCC,fecha,desc+(note?' · '+note:''),catEl.dataset.cat);
+      showToast(mesesCC>1?'Compra a '+mesesCC+' meses registrada ✓':'Compra a crédito registrada ✓');
+      document.getElementById('modal-gasto').classList.remove('open');
+      renderSaldoCard();renderAll();
+    }else{
+      dbgLog('error','TDC','tarjeta no encontrada: '+tarjetaCC);
+      showToast('\u26a0\ufe0f No se registraron las cuotas de la tarjeta');
+      document.getElementById('modal-gasto').classList.remove('open');
+    }
+    resetMesesCredito();playSuccess();return;
+  }
+  resetMesesCredito();
+  const gasto={localId:uid(),account:currentAcct,amount,categoria:catEl.dataset.cat,fecha,quien,nota:desc+(note?' · '+note:''),pago,userId:isCasa?'casa':currentAcct,origen:_origenCaptura||"manual"};
   if(!isOnline){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();gastosMes.unshift({rowIndex:null,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,_pending:true});renderAll();}
   else{try{let ok=false;if(esHogar(currentAcct)){const res=await postAPI({action:'registrarGasto',token:TOKEN,fecha,categoria:gasto.categoria,monto:amount,quien,nota:gasto.nota,pago,userId:'casa'});ok=res.ok;}else{const res=await registrarGastoPersonal(currentAcct,{...gasto,monto:amount});ok=res.ok;}if(ok){showToast('Gasto registrado ✓');ajustarSaldoReal(quien,-amount);renderSaldoCard();document.getElementById('modal-gasto').classList.remove('open');await loadData();}else{const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Error — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}catch(e){const q=gq(currentAcct);q.push(gasto);sq(currentAcct,q);showToast('Sin conexión — guardado offline 🟡');document.getElementById('modal-gasto').classList.remove('open');updateBadges();}}
   playSuccess();
