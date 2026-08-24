@@ -1522,7 +1522,7 @@ async function openAccount(acct){
     try{await requestSheetsAccess(acct);}catch(e){}
   }
   await loadData();
-  setTimeout(()=>{checkCierreMes();checkDomingo();checkLimitesMes();checkFuentesIngreso();},400);
+  setTimeout(()=>{checkCierreMes();checkDomingo();checkLimitesMes();checkFuentesIngreso();checkInversionesVencidas();},400);
 }
 function goHome(){currentAcct=null;gastosMes=[];budgets={};try{localStorage.removeItem(sk('last_acct'));}catch(e){}showScreen('home');updateBadges();}
 
@@ -1566,6 +1566,8 @@ async function loadData(){
     showToast('Error al cargar datos');
     gastosMes=[];
   }
+  // Cargar inversiones en paralelo (no bloquea el render principal)
+  cargarInversionesDesdeSheet().catch(()=>{});
   renderAll();
 }
 
@@ -2977,6 +2979,677 @@ async function loadHistorialMeses(){
 function rMetas(){_renderMetasContent();}
 
 // ══════════════════════════════════════════════════════════════════
+// INVERSIONES — Rev 83
+// ══════════════════════════════════════════════════════════════════
+const INV_KEY = () => `pb_inversiones_${currentAcct}`;
+// Caché local — fuente de verdad es el Sheet
+function getInversiones(){ return gls(INV_KEY())||[]; }
+function _cacheInversiones(arr){ sls(INV_KEY(),arr); }
+
+async function cargarInversionesDesdeSheet(){
+  if(!isOnline||!currentAcct)return;
+  try{
+    const userId=esHogar(currentAcct)?'casa':currentAcct;
+    const quien=currentUser?.name||userConfig?.nombre||'';
+    const res=await getAPI({action:'getInversiones',userId,quien,token:TOKEN});
+    if(res.ok&&Array.isArray(res.inversiones)){
+      _cacheInversiones(res.inversiones);
+      dbgLog('info','invSheet','Inversiones cargadas: '+res.inversiones.length);
+    }
+  }catch(e){dbgLog('warn','invSheet','carga: '+e.message);}
+}
+
+async function saveInversiones(arr){
+  // 1. Caché inmediato para UX rápida
+  _cacheInversiones(arr);
+  // 2. Sync al Sheet en background
+  if(isOnline){
+    try{
+      const userId=esHogar(currentAcct)?'casa':currentAcct;
+      const quien=currentUser?.name||userConfig?.nombre||'';
+      await postAPI({action:'saveInversionesSheet',token:TOKEN,userId,quien,inversiones:arr});
+      dbgLog('info','invSheet','Sync OK ('+arr.length+' inversiones)');
+    }catch(e){dbgLog('warn','invSheet','sync: '+e.message);}
+  }
+}
+
+// ── Tipos ──
+const INV_TIPOS = [
+  {v:'cetes',     l:'CETES',              e:'🏛',  plazoFijo:true,  plataforma:'Cetesdirecto',  base:360},
+  {v:'pagare',    l:'Pagaré bancario',    e:'🏦',  plazoFijo:true,  plataforma:'',              base:360},
+  {v:'fondo',     l:'Fondo de inversión', e:'📈',  plazoFijo:false, plataforma:'',              base:365},
+  {v:'fintech',   l:'Fintech',            e:'📱',  plazoFijo:false, plataforma:'',              base:365},
+];
+const INV_PAGO_INT = [
+  {v:'vencer',      l:'Al vencer',     desc:'Capital + rendimiento en una sola exhibición'},
+  {v:'mensual',     l:'Mensual',       desc:'Intereses cada mes, capital al vencer'},
+  {v:'trimestral',  l:'Trimestral',    desc:'Intereses cada 3 meses, capital al vencer'},
+  {v:'personalizado',l:'Personalizado',desc:''},
+];
+
+// ── Cálculo ──
+function invCalc(inv){
+  if(!inv.monto||!inv.tasa)return{bruto:0,isr:0,neto:0,total:0,diasTotales:0,diasTranscurridos:0};
+  const inicio=new Date(inv.fechaInicio+'T12:00:00');
+  const base=inv.base||360;
+  let diasTotales=0,diasTranscurridos=0;
+  if(inv.plazoFijo&&inv.fechaVencimiento){
+    const vence=new Date(inv.fechaVencimiento+'T12:00:00');
+    diasTotales=Math.round((vence-inicio)/(1000*60*60*24));
+    diasTranscurridos=Math.min(diasTotales,Math.max(0,Math.round((new Date()-inicio)/(1000*60*60*24))));
+  }
+  const bruto=inv.monto*(inv.tasa/100)*(diasTotales/base);
+  const pctISR=inv.retieneisr?(inv.pctISR||0.9)/100:0;
+  const isr=inv.monto*pctISR*(diasTotales/365);
+  const neto=Math.max(0,bruto-isr);
+  const total=inv.monto+neto;
+  // Valor hoy (crecimiento lineal)
+  const valorHoy=diasTotales>0?inv.monto+(neto*(diasTranscurridos/diasTotales)):inv.monto;
+  // Rendimiento diario (para fondos/fintech)
+  const rendDiario=inv.monto*(inv.tasa/100)/365;
+  return{bruto,isr,neto,total,diasTotales,diasTranscurridos,valorHoy,rendDiario};
+}
+
+// ── Abrir / cerrar overlay ──
+let _invMontosOcultos=false;
+function abrirOverlayInversiones(){
+  document.getElementById('overlay-inversiones').style.display='block';
+  renderListaInversiones();
+}
+function cerrarOverlayInversiones(){
+  document.getElementById('overlay-inversiones').style.display='none';
+}
+function toggleMontosInv(){
+  _invMontosOcultos=!_invMontosOcultos;
+  renderListaInversiones();
+}
+
+// ── Render lista ──
+function renderListaInversiones(){
+  const el=document.getElementById('inv-lista-container');
+  if(!el)return;
+  const inversiones=getInversiones().filter(i=>i.activa!==false);
+  const hoy=today();
+
+  // Banner vencimiento pendiente
+  const vencidas=inversiones.filter(i=>i.plazoFijo&&i.fechaVencimiento&&i.fechaVencimiento<=hoy&&!i.resuelta);
+
+  let html='';
+
+  // Banners de vencimiento
+  vencidas.forEach(inv=>{
+    const calc=invCalc(inv);
+    html+=`<div style="background:#7a3a10;border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">🔔</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#fff;font-family:sans-serif">${escapeHtml(inv.nombre)} — venció ${inv.fechaVencimiento}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);font-family:sans-serif;margin-top:2px">${_invMontosOcultos?'••••••':(fmxn(calc.total)+' disponibles')}</div>
+      </div>
+      <button onclick="abrirAccionesVencimiento('${inv.id}')" style="background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-size:12px;font-family:sans-serif;cursor:pointer;flex-shrink:0">¿Qué hago?</button>
+    </div>`;
+  });
+
+  if(!inversiones.length){
+    html+=`<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:44px;margin-bottom:14px">📈</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:8px">Sin inversiones registradas</div>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.6;max-width:240px;margin:0 auto 20px">Registra tus CETES, pagarés, fondos o cuentas fintech para ver cómo crece tu dinero.</div>
+      <button onclick="abrirFormInversion()" style="background:#1a3a2a;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">＋ Registrar primera inversión</button>
+    </div>`;
+    el.innerHTML=html;return;
+  }
+
+  // Total invertido
+  const totalInv=inversiones.reduce((s,i)=>s+i.monto,0);
+  const totalNeto=inversiones.filter(i=>i.plazoFijo).reduce((s,i)=>s+invCalc(i).neto,0);
+  html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
+    <div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif;text-transform:uppercase;letter-spacing:.5px">Total invertido</div>
+      <div style="font-size:24px;font-weight:600;color:#fff;font-family:sans-serif">${_invMontosOcultos?'••••••':fmxn(totalInv)}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif">Rend. estimado</div>
+      <div style="font-size:14px;font-weight:600;color:#7ef5a8;font-family:sans-serif">${_invMontosOcultos?'••••':'+'+fmxn(totalNeto)}</div>
+    </div>
+    <button onclick="toggleMontosInv()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;padding:4px" title="${_invMontosOcultos?'Mostrar':'Ocultar'} montos">${_invMontosOcultos?'👁':'🙈'}</button>
+  </div>`;
+
+  // Agrupar por dueño
+  const _grpPersonal=inversiones.filter(i=>i.dueno!=='Casa'&&!i.compartida);
+  const _grpHogar=inversiones.filter(i=>i.dueno==='Casa'||i.compartida);
+  if(_grpPersonal.length&&_grpHogar.length){
+    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);font-family:sans-serif;margin:4px 0 8px">Personales</div>`;
+  }
+  const _invOrdenadas=[..._grpPersonal,...(_grpHogar.length&&_grpPersonal.length?[{_separator:true}]:[]),..._grpHogar];
+  // Cards por inversión
+  _invOrdenadas.forEach(inv=>{
+    if(inv._separator){html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);font-family:sans-serif;margin:14px 0 8px">Hogar</div>`;return;}
+    const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
+    const calc=invCalc(inv);
+    const oculto=_invMontosOcultos;
+    const pct=calc.diasTotales>0?Math.round(calc.diasTranscurridos/calc.diasTotales*100):0;
+    const vencida=inv.plazoFijo&&inv.fechaVencimiento&&inv.fechaVencimiento<=today()&&!inv.resuelta;
+
+    html+=`<div style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer" onclick="abrirDetalleInversion('${inv.id}')">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:${inv.plazoFijo?'10':'4'}px">
+        <span style="font-size:22px;flex-shrink:0">${tipo.e}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600;color:#fff;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(inv.nombre)}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif;margin-top:2px">${tipo.l}${inv.plazoFijo&&inv.fechaVencimiento?` · vence ${inv.fechaVencimiento}`:' · rendimiento diario'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:600;color:#fff;font-family:sans-serif">${oculto?'••••••':fmxn(inv.monto)}</div>
+          <div style="font-size:11px;color:#7ef5a8;font-family:sans-serif;margin-top:2px">${oculto?'••••':(inv.plazoFijo?'+'+fmxn(calc.neto)+' est.':'~'+fmxn(calc.rendDiario)+'/día')}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">${inv.tasa}% anual</span>
+        <span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">base ${inv.base||360}</span>
+        ${inv.retieneisr?`<span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">ISR ${inv.pctISR||0.9}%</span>`:''}
+        ${inv.reinversionAuto?`<span style="font-size:10px;background:rgba(126,245,168,0.15);color:#7ef5a8;padding:3px 8px;border-radius:10px;font-family:sans-serif">↺ auto</span>`:''}
+        ${vencida?`<span style="font-size:10px;background:rgba(210,100,30,0.3);color:#f5a87a;padding:3px 8px;border-radius:10px;font-family:sans-serif">Vencida</span>`:''}
+      </div>
+      ${inv.plazoFijo&&calc.diasTotales>0?`
+      <div style="margin-top:10px">
+        <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:4px;overflow:hidden">
+          <div style="width:${pct}%;background:#7ef5a8;height:4px;border-radius:4px;transition:width .3s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,0.35);font-family:sans-serif;margin-top:3px">
+          <span>${inv.fechaInicio}</span>
+          <span>${calc.diasTranscurridos}/${calc.diasTotales} días (${pct}%)</span>
+          <span>${inv.fechaVencimiento}</span>
+        </div>
+      </div>`:''}
+    </div>`;
+  });
+
+  el.innerHTML=html;
+}
+
+// ── Detalle de inversión ──
+function abrirDetalleInversion(id){
+  const inv=getInversiones().find(i=>i.id===id);
+  if(!inv)return;
+  const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
+  const calc=invCalc(inv);
+  const oculto=_invMontosOcultos;
+  let html=`<div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:40px;margin-bottom:8px">${tipo.e}</div>
+    <div style="font-size:18px;font-weight:700;color:var(--text);font-family:sans-serif">${escapeHtml(inv.nombre)}</div>
+    <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-top:4px">${tipo.l}</div>
+  </div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Proyección al vencimiento</div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Capital invertido</span><span style="color:var(--text)">${oculto?'••••••':fmxn(inv.monto)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento bruto</span><span style="color:var(--text)">${oculto?'••••':'+'+fmxn(calc.bruto)}</span></div>
+    ${inv.retieneisr?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">ISR retenido (${inv.pctISR||0.9}%)</span><span style="color:var(--danger)">${oculto?'••••':'-'+fmxn(calc.isr)}</span></div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:15px;font-family:sans-serif;font-weight:700;padding:8px 0 2px"><span style="color:var(--text)">Recibirás</span><span style="color:var(--success)">${oculto?'••••••':fmxn(calc.total)}</span></div>
+  </div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Parámetros del contrato</div>
+    ${[
+      ['Tasa anual',inv.tasa+'%'],
+      ['Base de cálculo',inv.base+' días'],
+      ['Fecha inicio',inv.fechaInicio],
+      inv.plazoFijo?['Fecha vencimiento',inv.fechaVencimiento]:['Tipo','Sin plazo fijo'],
+      ['Pago de intereses',INV_PAGO_INT.find(p=>p.v===inv.pagoInteres)?.l||inv.pagoInteres||'Al vencer'],
+      ['Retención ISR',inv.retieneisr?'Sí ('+inv.pctISR+'%)':'No'],
+      inv.reinversionAuto!==undefined?['Reinversión auto',inv.reinversionAuto?'Sí':'No']:null,
+      inv.notas?['Notas',inv.notas]:null,
+    ].filter(Boolean).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${k}</span><span style="color:var(--text)">${escapeHtml(String(v))}</span></div>`).join('')}
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <button onclick="cerrarModalGenerico();abrirFormInversion('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">✏️ Editar</button>
+    <button onclick="cerrarModalGenerico();abrirAccionesVencimiento('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">💰 Resolver</button>
+  </div>
+  <button onclick="eliminarInversion('${id}')" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer">Eliminar inversión</button>`;
+  mostrarModalGenerico(html);
+}
+
+// ── Acciones al vencer ──
+function abrirAccionesVencimiento(id){
+  const inv=getInversiones().find(i=>i.id===id);
+  if(!inv)return;
+  const calc=invCalc(inv);
+  const cuentas=getCuentas();
+  const opsCuentas=cuentas.map(c=>`<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join('');
+  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:4px">${escapeHtml(inv.nombre)}</div>
+    <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:16px">Total a recibir: ${fmxn(calc.total)}</div>
+    <div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:8px">¿Qué haces con este dinero?</div>
+    ${cuentas.length?`<div style="margin-bottom:8px">
+      <label style="font-size:12px;color:var(--muted);font-family:sans-serif;display:block;margin-bottom:5px">Cuenta de destino</label>
+      <select class="form-input" id="inv-cuenta-destino" style="padding:9px 12px">${opsCuentas}</select>
+    </div>`:''}
+    <button onclick="resolverInversion('${id}','mover')" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:12px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600;margin-bottom:8px">Mover a cuenta (${fmxn(calc.total)})</button>
+    <button onclick="resolverInversion('${id}','reinvertir')" style="width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer;margin-bottom:8px">↺ Reinvertir con mismos parámetros</button>
+    <button onclick="resolverInversion('${id}','posponer')" style="width:100%;background:none;border:none;padding:10px;font-size:12px;font-family:sans-serif;color:var(--muted);cursor:pointer">Recordar en 3 días</button>`;
+  mostrarModalGenerico(html);
+}
+function resolverInversion(id,accion){
+  const inversiones=getInversiones();
+  const idx=inversiones.findIndex(i=>i.id===id);
+  if(idx<0)return;
+  const inv=inversiones[idx];
+  const calc=invCalc(inv);
+  if(accion==='mover'){
+    const cuentaId=document.getElementById('inv-cuenta-destino')?.value||null;
+    if(cuentaId){
+      ajustarSaldoCuenta(cuentaId,calc.total);
+      showToast(fmxn(calc.total)+' movidos a cuenta ✓');
+    }else showToast('Inversión resuelta ✓');
+    inversiones[idx].resuelta=true;
+    inversiones[idx].activa=false;
+  }else if(accion==='reinvertir'){
+    const nueva={...inv,id:uid(),fechaInicio:today(),resuelta:false,activa:true};
+    if(inv.plazoFijo&&inv.fechaVencimiento){
+      const dias=invCalc(inv).diasTotales;
+      const d=new Date();d.setDate(d.getDate()+dias);
+      nueva.fechaVencimiento=d.toISOString().split('T')[0];
+    }
+    inversiones.push(nueva);
+    inversiones[idx].resuelta=true;inversiones[idx].activa=false;
+    showToast('Reinversión creada ✓');
+  }else if(accion==='posponer'){
+    const d=new Date();d.setDate(d.getDate()+3);
+    inversiones[idx].fechaVencimiento=d.toISOString().split('T')[0];
+    showToast('Se te recordará en 3 días');
+  }
+  saveInversiones(inversiones);
+  cerrarModalGenerico();
+  renderListaInversiones();
+}
+function eliminarInversion(id){
+  if(!confirm('¿Eliminar esta inversión?'))return;
+  saveInversiones(getInversiones().filter(i=>i.id!==id));
+  cerrarModalGenerico();
+  renderListaInversiones();
+  showToast('Inversión eliminada');
+}
+
+// ── Formulario / cuestionario ──
+let _invEditId=null;
+let _invTipoActual=null;
+function abrirFormInversion(editId){
+  _invEditId=editId||null;
+  _invTipoActual=null;
+  const inv=editId?getInversiones().find(i=>i.id===editId):null;
+  document.getElementById('inv-form-titulo').textContent=editId?'Editar inversión':'Nueva inversión';
+  if(inv){
+    _invTipoActual=inv.tipo;
+    renderFormInversionCuestionario(inv.tipo,inv);
+  }else{
+    renderSeleccionTipoInv();
+  }
+  document.getElementById('overlay-inv-form').style.display='block';
+}
+function cerrarFormInversion(){
+  document.getElementById('overlay-inv-form').style.display='none';
+  _invEditId=null;_invTipoActual=null;
+}
+
+// Paso 1: elegir tipo
+function renderSeleccionTipoInv(){
+  const el=document.getElementById('inv-form-body');
+  el.innerHTML=`<div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:14px">¿Qué tipo de inversión quieres registrar?</div>`+
+  INV_TIPOS.map(t=>`
+    <div onclick="selTipoInv('${t.v}')" style="display:flex;align-items:flex-start;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer">
+      <span style="font-size:26px;flex-shrink:0">${t.e}</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;color:var(--text);font-family:sans-serif">${t.l}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-top:4px">${_invDescTipo(t.v)}</div>
+      </div>
+      <span style="color:var(--muted);font-size:18px;align-self:center">›</span>
+    </div>`).join('')+
+  `<div style="margin-top:16px;padding:12px;background:rgba(183,152,88,0.08);border:1px solid rgba(183,152,88,0.2);border-radius:12px">
+    <div style="font-size:12px;color:var(--p);font-family:sans-serif;font-weight:600;margin-bottom:4px">💡 ¿No sabes cuál es tu instrumento?</div>
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;line-height:1.5">Revisa el nombre en tu contrato, app o estado de cuenta. Busca las palabras: CETES, Pagaré, Fondo o el nombre de tu plataforma.</div>
+  </div>`;
+}
+function _invDescTipo(v){
+  const d={
+    cetes:'Certificados de la Tesorería — gobierno federal. Disponible en cetesdirecto.com.',
+    pagare:'Inversión a plazo fijo con tu banco. HSBC, BBVA, Banamex, Santander, etc.',
+    fondo:'Portafolio de instrumentos gestionado por un banco o casa de bolsa. Rendimiento variable.',
+    fintech:'Nu, Mercado Pago, Ualá y similares. Rendimiento diario automático sobre tu saldo.',
+  };
+  return d[v]||'';
+}
+function selTipoInv(tipo){
+  _invTipoActual=tipo;
+  renderFormInversionCuestionario(tipo,null);
+}
+
+// Paso 2: cuestionario
+function renderFormInversionCuestionario(tipo,inv){
+  const el=document.getElementById('inv-form-body');
+  const t=INV_TIPOS.find(x=>x.v===tipo);
+  const plazoFijo=t?.plazoFijo??true;
+  const v=inv||{};
+
+  // Helper chips
+  const chips=(opciones,selVal,inputId,suffix='')=>opciones.map(o=>`<div class="inv-chip" data-val="${o.v}" data-input="${inputId}" onclick="invSelChip(this)"
+    style="padding:7px 13px;border-radius:20px;font-size:12px;border:0.5px solid var(--border);background:${(v[inputId]||selVal)===o.v?'var(--s)':'var(--card)'};color:${(v[inputId]||selVal)===o.v?'var(--bg)':'var(--text)'};cursor:pointer;font-family:sans-serif">${o.l}${suffix?('<br><span style="font-size:10px;opacity:.6">'+o.desc+'</span>'):''}</div>`).join('');
+
+  el.innerHTML=`
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer" onclick="renderSeleccionTipoInv()">
+    <span style="font-size:22px">${t.e}</span>
+    <span style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif">${t.l}</span>
+    <span style="font-size:12px;color:var(--p);font-family:sans-serif">cambiar ›</span>
+  </div>
+
+  <div class="form-group"><label class="form-label">Nombre o etiqueta</label>
+    <input class="form-input" id="inv-nombre" placeholder="ej. CETES agosto 364d" value="${escapeHtml(v.nombre||'')}"></div>
+
+  <div class="form-group"><label class="form-label">${plazoFijo?'Monto invertido':'Saldo actual'}</label>
+    <input type="number" class="form-input amount-input" id="inv-monto" placeholder="0.00" inputmode="decimal" value="${v.monto||''}"></div>
+
+  <div class="form-group"><label class="form-label">Tasa anual %
+    <span style="font-size:11px;color:var(--muted);font-weight:400"> — la que aparece en tu contrato o app</span></label>
+    <input type="number" class="form-input" id="inv-tasa" placeholder="ej. 7.01" step="0.01" inputmode="decimal" value="${v.tasa||''}" oninput="invRecalc()"></div>
+
+  <div class="form-group"><label class="form-label">Fecha de inicio</label>
+    <input type="date" class="form-input" id="inv-fechaInicio" value="${v.fechaInicio||today()}" onchange="invRecalc()"></div>
+
+  ${plazoFijo?`<div class="form-group"><label class="form-label">Fecha de vencimiento
+    <span style="font-size:11px;color:var(--muted);font-weight:400"> — la fecha exacta de tu contrato</span></label>
+    <input type="date" class="form-input" id="inv-fechaVencimiento" value="${v.fechaVencimiento||''}" onchange="invRecalc()"></div>`:''}
+
+  <div class="form-group"><label class="form-label">Base de cálculo
+    <button onclick="invToggleHelp('help-base')" style="background:none;border:0.5px solid var(--border);border-radius:50%;width:20px;height:20px;font-size:11px;color:var(--muted);cursor:pointer;vertical-align:middle;margin-left:6px">?</button></label>
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Busca "base de cálculo" o "año comercial" en tu contrato</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${[{v:'360',l:'360 días'},{v:'365',l:'365 días'},{v:'custom',l:'Personalizado'}].map(o=>`
+      <div class="inv-chip inv-chip-base" data-val="${o.v}" onclick="invSelChipBase(this,'inv-base')"
+        style="padding:7px 13px;border-radius:20px;font-size:12px;border:0.5px solid var(--border);background:${(String(v.base||t.base||360))===o.v?'var(--s)':'var(--card)'};color:${(String(v.base||t.base||360))===o.v?'var(--bg)':'var(--text)'};cursor:pointer;font-family:sans-serif">${o.l}</div>`).join('')}
+    </div>
+    <input type="number" class="form-input" id="inv-base-custom" style="display:none;margin-top:8px" placeholder="ej. 252" value="">
+    <input type="hidden" id="inv-base" value="${v.base||t.base||360}">
+    <div id="help-base" style="display:none;margin-top:10px;border:0.5px solid var(--s);border-radius:10px;overflow:hidden">
+      ${_invHelpCard('base',tipo)}
+    </div>
+  </div>
+
+  <div class="form-group"><label class="form-label">¿Tu institución retiene ISR?
+    <button onclick="invToggleHelp('help-isr')" style="background:none;border:0.5px solid var(--border);border-radius:50%;width:20px;height:20px;font-size:11px;color:var(--muted);cursor:pointer;vertical-align:middle;margin-left:6px">?</button></label>
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Revisa tu contrato en "Retenciones" o "Impuestos"</div>
+    <div style="display:flex;gap:8px">
+      <div class="inv-chip-isr" onclick="invSelISR(true)" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:0.5px solid var(--border);background:${v.retieneisr!==false?'var(--s)':'var(--card)'};color:${v.retieneisr!==false?'var(--bg)':'var(--text)'};cursor:pointer">Sí</div>
+      <div class="inv-chip-isr" onclick="invSelISR(false)" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:0.5px solid var(--border);background:${v.retieneisr===false?'var(--s)':'var(--card)'};color:${v.retieneisr===false?'var(--bg)':'var(--text)'};cursor:pointer">No</div>
+    </div>
+    <div id="isr-pct-wrap" style="display:${v.retieneisr===false?'none':'block'};margin-top:10px;padding:10px 12px;background:var(--card);border-radius:10px;border:0.5px solid var(--border)">
+      <label style="font-size:12px;color:var(--muted);font-family:sans-serif;display:block;margin-bottom:8px">Porcentaje de retención sobre el capital</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="isr-pct-chips">
+        ${[{v:'0.9',l:'0.90% (2026)'},{v:'0.5',l:'0.50%'},{v:'custom',l:'Personalizado'}].map(o=>`
+        <div class="inv-chip-pct" data-val="${o.v}" onclick="invSelISRPct(this)"
+          style="padding:6px 12px;border-radius:20px;font-size:12px;border:0.5px solid var(--border);background:${(String(v.pctISR||0.9))===o.v||(!v.pctISR&&o.v==='0.9')?'var(--s)':'var(--card)'};color:${(String(v.pctISR||0.9))===o.v||(!v.pctISR&&o.v==='0.9')?'var(--bg)':'var(--text)'};cursor:pointer;font-family:sans-serif">${o.l}</div>`).join('')}
+      </div>
+      <input type="number" class="form-input" id="inv-pct-isr-custom" style="display:none;margin-top:8px" step="0.01" placeholder="ej. 1.20" value="">
+      <input type="hidden" id="inv-pct-isr" value="${v.pctISR||0.9}">
+    </div>
+    <div id="help-isr" style="display:none;margin-top:10px;border:0.5px solid var(--s);border-radius:10px;overflow:hidden">
+      ${_invHelpCard('isr',tipo)}
+    </div>
+  </div>
+
+  ${plazoFijo?`<div class="form-group"><label class="form-label">¿Cómo recibes los intereses?</label>
+    <div style="display:flex;flex-direction:column;gap:6px" id="pago-int-chips">
+    ${INV_PAGO_INT.map(o=>`<div class="inv-chip-pago" data-val="${o.v}" onclick="invSelPagoInt(this)"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;font-size:13px;font-family:sans-serif;border:0.5px solid var(--border);background:${(v.pagoInteres||'vencer')===o.v?'var(--s)':'var(--card)'};color:${(v.pagoInteres||'vencer')===o.v?'var(--bg)':'var(--text)'};cursor:pointer">
+      <span>${o.l}</span><span style="font-size:11px;opacity:.6">${o.desc}</span>
+    </div>`).join('')}
+    </div>
+    <div id="pago-int-sub" style="display:none;margin-top:10px;padding:10px 12px;background:var(--card);border-radius:10px;border:0.5px solid var(--border)">
+      <div id="pago-int-sub-content"></div>
+    </div>
+  </div>
+  <div class="form-group"><label class="form-label">¿Tienes reinversión automática?
+    <span style="font-size:11px;color:var(--muted);font-weight:400"> — en Cetesdirecto se activa al contratar</span></label>
+    <div style="display:flex;gap:8px">
+      <div onclick="invSelReinv(true)" id="reinv-si" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:0.5px solid var(--border);background:${v.reinversionAuto?'var(--s)':'var(--card)'};color:${v.reinversionAuto?'var(--bg)':'var(--text)'};cursor:pointer">Sí</div>
+      <div onclick="invSelReinv(false)" id="reinv-no" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:0.5px solid var(--border);background:${!v.reinversionAuto?'var(--s)':'var(--card)'};color:${!v.reinversionAuto?'var(--bg)':'var(--text)'};cursor:pointer">No</div>
+    </div>
+  </div>`:''}
+
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;cursor:pointer" onclick="document.getElementById('inv-compartida').click()">
+    <input type="checkbox" id="inv-compartida" ${v.compartida?'checked':''} style="accent-color:var(--p);width:18px;height:18px;flex-shrink:0" onclick="event.stopPropagation()">
+    <div>
+      <div style="font-size:13px;color:var(--text);font-family:sans-serif;font-weight:500">Inversión compartida con el hogar</div>
+      <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:2px">Todos los miembros del hogar podrán verla. Ideal para inversiones conjuntas.</div>
+    </div>
+  </div>
+  <div class="form-group"><label class="form-label">Notas (opcional)</label>
+    <input class="form-input" id="inv-notas" placeholder="ej. Folio 12345, renovar en diciembre" value="${escapeHtml(v.notas||'')}"></div>
+
+  <div id="inv-proyeccion" style="margin-bottom:16px"></div>
+
+  <button onclick="submitInversion()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600;margin-bottom:16px">${inv?'Guardar cambios':'Registrar inversión'}</button>
+  `;
+
+  // Recalcular al final del render
+  setTimeout(invRecalc,50);
+}
+
+// ── Helpers de interacción del formulario ──
+function invSelChipBase(el,hiddenId){
+  document.querySelectorAll('.inv-chip-base').forEach(c=>{c.style.background='var(--card)';c.style.color='var(--text)';});
+  el.style.background='var(--s)';el.style.color='var(--bg)';
+  const custom=document.getElementById('inv-base-custom');
+  if(el.dataset.val==='custom'){custom.style.display='block';custom.focus();}
+  else{custom.style.display='none';document.getElementById(hiddenId).value=el.dataset.val;}
+  invRecalc();
+}
+function invSelISR(val){
+  document.querySelectorAll('.inv-chip-isr').forEach((c,i)=>{
+    const isActive=(i===0&&val)||(i===1&&!val);
+    c.style.background=isActive?'var(--s)':'var(--card)';
+    c.style.color=isActive?'var(--bg)':'var(--text)';
+  });
+  document.getElementById('isr-pct-wrap').style.display=val?'block':'none';
+  invRecalc();
+}
+function invSelISRPct(el){
+  document.querySelectorAll('.inv-chip-pct').forEach(c=>{c.style.background='var(--card)';c.style.color='var(--text)';});
+  el.style.background='var(--s)';el.style.color='var(--bg)';
+  const custom=document.getElementById('inv-pct-isr-custom');
+  if(el.dataset.val==='custom'){custom.style.display='block';custom.focus();}
+  else{custom.style.display='none';document.getElementById('inv-pct-isr').value=el.dataset.val;}
+  invRecalc();
+}
+function invSelPagoInt(el){
+  document.querySelectorAll('.inv-chip-pago').forEach(c=>{c.style.background='var(--card)';c.style.color='var(--text)';});
+  el.style.background='var(--s)';el.style.color='var(--bg)';
+  const sub=document.getElementById('pago-int-sub');
+  const cont=document.getElementById('pago-int-sub-content');
+  const val=el.dataset.val;
+  if(val==='mensual'){
+    sub.style.display='block';
+    cont.innerHTML=`<label style="font-size:12px;color:var(--muted);font-family:sans-serif;display:block;margin-bottom:8px">¿Qué día del mes recibes el pago?</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${['1','15','último','personalizado'].map(d=>`<div class="inv-chip-dia" onclick="invSelDia(this)" style="padding:6px 12px;border-radius:20px;font-size:12px;border:0.5px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-family:sans-serif">${d==='personalizado'?'Personalizado':('Día '+d)}</div>`).join('')}
+    </div>
+    <input type="number" id="inv-dia-custom" style="display:none;margin-top:8px" class="form-input" min="1" max="31" placeholder="ej. 20">`;
+  }else if(val==='trimestral'){
+    sub.style.display='block';
+    cont.innerHTML=`<label style="font-size:12px;color:var(--muted);font-family:sans-serif;display:block;margin-bottom:5px">Fecha del primer pago de intereses</label>
+    <input type="date" class="form-input" id="inv-primer-pago">`;
+  }else if(val==='personalizado'){
+    sub.style.display='block';
+    cont.innerHTML=`<div class="form-group"><label class="form-label">Describe la periodicidad</label>
+    <input class="form-input" id="inv-pago-desc" placeholder="ej. Cada 45 días a partir del inicio"></div>
+    <div class="form-group"><label class="form-label">Fecha del primer pago</label>
+    <input type="date" class="form-input" id="inv-primer-pago"></div>`;
+  }else{sub.style.display='none';}
+}
+function invSelDia(el){
+  document.querySelectorAll('.inv-chip-dia').forEach(c=>{c.style.background='var(--card)';c.style.color='var(--text)';});
+  el.style.background='var(--s)';el.style.color='var(--bg)';
+  const custom=document.getElementById('inv-dia-custom');
+  if(el.textContent==='Personalizado')custom.style.display='block';
+  else custom.style.display='none';
+}
+function invSelReinv(val){
+  document.getElementById('reinv-si').style.background=val?'var(--s)':'var(--card)';
+  document.getElementById('reinv-si').style.color=val?'var(--bg)':'var(--text)';
+  document.getElementById('reinv-no').style.background=!val?'var(--s)':'var(--card)';
+  document.getElementById('reinv-no').style.color=!val?'var(--bg)':'var(--text)';
+}
+function invToggleHelp(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+// ── Help cards con query preview ──
+function _invHelpCard(campo,tipo){
+  const data={
+    base:{
+      titulo:'Base de cálculo — ¿qué es y dónde está?',
+      texto:'Es el número de días que tu institución usa como "año" para calcular intereses. La mayoría usa 360 (año comercial). Algunos usan 365 (año natural).',
+      donde:'Busca en tu contrato o PDF: "base de cálculo", "año comercial" o "Días base". En Cetesdirecto aparece como "base 360" en el resumen antes de confirmar.',
+      query:`base de cálculo rendimiento ${tipo} México dónde aparece contrato`,
+    },
+    isr:{
+      titulo:'ISR retenido — ¿qué es y dónde está?',
+      texto:'El ISR (Impuesto Sobre la Renta) es un porcentaje que la institución descuenta de tu rendimiento y entrega al SAT. Es un pago provisional — se acredita en tu declaración anual.',
+      donde:'Busca en tu estado de cuenta o contrato: "Retenciones", "ISR retenido" o "Impuestos". En Cetesdirecto aparece en el detalle de cada inversión.',
+      query:`ISR retenido inversión ${tipo} México estado de cuenta 2026 dónde aparece`,
+    },
+  };
+  const d=data[campo];
+  if(!d)return '';
+  const encodedQ=encodeURIComponent(d.query);
+  const helpId=`help-query-${campo}`;
+  const previewId=`help-preview-${campo}`;
+  return `<div style="background:rgba(183,152,88,0.08);padding:10px 12px">
+    <div style="font-size:12px;font-weight:600;color:var(--p);font-family:sans-serif;margin-bottom:6px">${d.titulo}</div>
+    <p style="font-size:12px;color:var(--text);font-family:sans-serif;line-height:1.5;margin:0 0 6px">${d.texto}</p>
+    <p style="font-size:11px;color:var(--muted);font-family:sans-serif;line-height:1.5;margin:0 0 10px"><strong style="color:var(--text)">Dónde encontrarlo:</strong> ${d.donde}</p>
+    <button id="${helpId}" onclick="document.getElementById('${previewId}').style.display='block';document.getElementById('${helpId}').style.display='none'"
+      style="width:100%;background:none;border:0.5px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+      🔍 Buscar esto en Google
+    </button>
+    <div id="${previewId}" style="display:none;margin-top:8px;background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:5px">Se buscará esto</div>
+      <div style="font-size:12px;color:var(--text);font-style:italic;font-family:sans-serif;line-height:1.5;margin-bottom:10px">"${d.query}"</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.open('https://www.google.com/search?q=${encodedQ}','_blank')"
+          style="flex:1;background:var(--p);color:var(--bg);border:none;border-radius:8px;padding:8px;font-size:12px;font-family:sans-serif;cursor:pointer;font-weight:600">Abrir en Google</button>
+        <button onclick="document.getElementById('${previewId}').style.display='none';document.getElementById('${helpId}').style.display='flex'"
+          style="background:none;border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;font-family:sans-serif;color:var(--muted);cursor:pointer">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Proyección en tiempo real ──
+function invRecalc(){
+  const el=document.getElementById('inv-proyeccion');
+  if(!el)return;
+  const monto=parseFloat(document.getElementById('inv-monto')?.value)||0;
+  const tasa=parseFloat(document.getElementById('inv-tasa')?.value)||0;
+  const inicio=document.getElementById('inv-fechaInicio')?.value||'';
+  const vence=document.getElementById('inv-fechaVencimiento')?.value||'';
+  const baseRaw=document.getElementById('inv-base-custom')?.style.display!=='none'?
+    parseFloat(document.getElementById('inv-base-custom')?.value):
+    parseFloat(document.getElementById('inv-base')?.value||360);
+  const base=baseRaw||360;
+  const tieneISR=document.querySelector('.inv-chip-isr')?.style.background?.includes('var(--s)')??true;
+  const pctISRRaw=document.getElementById('inv-pct-isr-custom')?.style.display!=='none'?
+    parseFloat(document.getElementById('inv-pct-isr-custom')?.value):
+    parseFloat(document.getElementById('inv-pct-isr')?.value||0.9);
+  const pctISR=pctISRRaw||0.9;
+
+  if(!monto||!tasa||!inicio){el.innerHTML='';return;}
+
+  let dias=0;
+  if(vence&&inicio){
+    const d1=new Date(inicio+'T12:00:00'),d2=new Date(vence+'T12:00:00');
+    dias=Math.round((d2-d1)/(1000*60*60*24));
+  }
+  if(dias<=0){el.innerHTML='';return;}
+
+  const bruto=monto*(tasa/100)*(dias/base);
+  const isr=tieneISR?monto*(pctISR/100)*(dias/365):0;
+  const neto=Math.max(0,bruto-isr);
+  const total=monto+neto;
+
+  el.innerHTML=`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:12px;padding:12px 14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Proyección (${dias} días)</div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">Capital</span><span>${fmxn(monto)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">Rendimiento bruto</span><span>+${fmxn(bruto)}</span></div>
+    ${tieneISR?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">ISR retenido</span><span style="color:var(--danger)">-${fmxn(isr)}</span></div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:15px;font-family:sans-serif;font-weight:700;padding:7px 0 2px"><span>Recibirás</span><span style="color:var(--success)">${fmxn(total)}</span></div>
+  </div>`;
+}
+
+// ── Submit ──
+function submitInversion(){
+  const nombre=document.getElementById('inv-nombre')?.value.trim();
+  const monto=parseFloat(document.getElementById('inv-monto')?.value);
+  const tasa=parseFloat(document.getElementById('inv-tasa')?.value);
+  const fechaInicio=document.getElementById('inv-fechaInicio')?.value;
+  const fechaVencimiento=document.getElementById('inv-fechaVencimiento')?.value||null;
+  const tipo=_invTipoActual||'cetes';
+  const t=INV_TIPOS.find(x=>x.v===tipo);
+  const plazoFijo=t?.plazoFijo??true;
+
+  if(!nombre){showToast('Agrega un nombre');return;}
+  if(!monto||monto<=0){showToast('Ingresa el monto');return;}
+  if(!tasa||tasa<=0){showToast('Ingresa la tasa');return;}
+  if(!fechaInicio){showToast('Selecciona la fecha de inicio');return;}
+  if(plazoFijo&&!fechaVencimiento){showToast('Ingresa la fecha de vencimiento');return;}
+
+  const baseEl=document.getElementById('inv-base-custom');
+  const base=baseEl?.style.display!=='none'?parseFloat(baseEl?.value)||360:parseFloat(document.getElementById('inv-base')?.value||360);
+  const retieneisr=!(document.querySelectorAll('.inv-chip-isr')[1]?.style.background?.includes('var(--s)'));
+  const pctISREl=document.getElementById('inv-pct-isr-custom');
+  const pctISR=pctISREl?.style.display!=='none'?parseFloat(pctISREl?.value)||0.9:parseFloat(document.getElementById('inv-pct-isr')?.value||0.9);
+  const pagoIntEl=document.querySelector('.inv-chip-pago[style*="var(--s)"]');
+  const pagoInteres=pagoIntEl?.dataset.val||'vencer';
+  const reinvEl=document.getElementById('reinv-si');
+  const reinversionAuto=reinvEl?.style.background?.includes('var(--s)')??false;
+  const notas=document.getElementById('inv-notas')?.value.trim()||'';
+
+  const invCompartida=document.getElementById('inv-compartida')?.checked||false;
+  const invDueno=invCompartida?'Casa':(currentUser?.name||userConfig?.nombre||'Yo');
+  const inv={
+    id:_invEditId||uid(),
+    tipo,nombre,monto,tasa,fechaInicio,
+    fechaVencimiento:plazoFijo?fechaVencimiento:null,
+    base,retieneisr,pctISR,pagoInteres,reinversionAuto,
+    plazoFijo,notas,activa:true,resuelta:false,
+    dueno:invDueno,compartida:invCompartida,
+    creadoEn:_invEditId?undefined:today(),
+  };
+
+  const lista=getInversiones();
+  if(_invEditId){
+    const idx=lista.findIndex(i=>i.id===_invEditId);
+    if(idx>=0)lista[idx]=inv;else lista.push(inv);
+  }else lista.push(inv);
+  saveInversiones(lista);
+
+  cerrarFormInversion();
+  renderListaInversiones();
+  showToast(_invEditId?'Inversión actualizada ✓':'Inversión registrada ✓');
+}
+
+// ── Check vencimientos al arrancar ──
+function checkInversionesVencidas(){
+  const hoy=today();
+  const vencidas=getInversiones().filter(i=>i.activa!==false&&i.plazoFijo&&i.fechaVencimiento&&i.fechaVencimiento<=hoy&&!i.resuelta);
+  if(!vencidas.length)return;
+  const keyVisto=`pb_inv_venc_popup_${currentAcct}_${hoy}`;
+  if(localStorage.getItem(keyVisto))return;
+  localStorage.setItem(keyVisto,'1');
+  // Mostrar badge en el botón de entrada de cuentas
+  const btn=document.getElementById('btn-abrir-inversiones');
+  if(btn)btn.style.position='relative';
+  showToast(`📈 ${vencidas.length} inversión${vencidas.length>1?'es':''} vencida${vencidas.length>1?'s':''} — revisa Mis inversiones`);
+}
+
+
+// ══════════════════════════════════════════════════════════════════
 // CUENTAS — Rev 83
 // ══════════════════════════════════════════════════════════════════
 function cuentasKey(){return `pb_cuentas_${currentAcct}`;}
@@ -3077,7 +3750,11 @@ function renderCuentasTab(){
     <div style="display:flex;gap:10px;margin-top:20px">
       <button onclick="abrirModalTransferencia()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">↔ Transferir</button>
       <button onclick="abrirMovimientosCuenta()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">📋 Movimientos</button>
-    </div>`;
+    </div>
+    <button id="btn-abrir-inversiones" onclick="abrirOverlayInversiones()" style="width:100%;margin-top:10px;display:flex;align-items:center;justify-content:space-between;background:none;border:0.5px dashed var(--border-strong);border-radius:var(--radius);padding:11px 14px;cursor:pointer;color:var(--text-secondary);font-family:sans-serif;font-size:13px">
+      <span style="display:flex;align-items:center;gap:8px">📈 Mis inversiones</span>
+      <span style="font-size:12px;color:var(--muted)">${getInversiones().filter(i=>i.activa!==false).length||'sin'} activa${getInversiones().filter(i=>i.activa!==false).length===1?'':'s'} ›</span>
+    </button>`;
   buildPagoGrid();
 }
 
@@ -6215,5 +6892,27 @@ function mostrarAvisoNuevaVersion(){
       </div>
     </div>
   </div>
+
+<!-- ══ OVERLAY INVERSIONES ══ -->
+<div id="overlay-inversiones" style="display:none;position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:#1a3a2a;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
+    <button onclick="cerrarOverlayInversiones()" style="background:none;border:none;color:rgba(255,255,255,0.75);font-size:26px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">‹</button>
+    <div style="flex:1">
+      <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif">Mis inversiones</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:'Helvetica Neue',sans-serif;margin-top:1px">Solo tú puedes ver esta sección</div>
+    </div>
+    <button onclick="abrirFormInversion()" style="background:none;border:0.5px solid rgba(255,255,255,0.3);border-radius:10px;padding:6px 12px;color:rgba(255,255,255,0.85);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">＋ Nueva</button>
+  </div>
+  <div id="inv-lista-container" style="padding:14px 14px 100px"></div>
+</div>
+
+<!-- ══ OVERLAY FORM INVERSIONES ══ -->
+<div id="overlay-inv-form" style="display:none;position:fixed;inset:0;z-index:5100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:#1a3a2a;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
+    <button onclick="cerrarFormInversion()" style="background:none;border:none;color:rgba(255,255,255,0.75);font-size:26px;cursor:pointer;padding:0;line-height:1">‹</button>
+    <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif" id="inv-form-titulo">Nueva inversión</div>
+  </div>
+  <div id="inv-form-body" style="padding:16px 14px 100px"></div>
+</div>
 </body>
 </html>
