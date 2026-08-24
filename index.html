@@ -904,7 +904,7 @@ function _dbgMostrarUI(){
   // Burbuja
   var bur=document.createElement('div');
   bur.id='dbg-burbuja';
-  bur.style.cssText='position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:#1e0c04;border:1.5px solid #7ef5a8;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:3100;box-shadow:0 2px 10px rgba(0,0,0,0.4);touch-action:none';
+  bur.style.cssText='position:fixed;right:14px;bottom:calc(74px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:#1e0c04;border:1.5px solid #7ef5a8;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:5500;box-shadow:0 2px 10px rgba(0,0,0,0.4);touch-action:none';
   bur.innerHTML='<span style="font-size:20px">🐞</span><div id="dbg-badge" style="display:none;position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;border-radius:9px;background:#ff4444;color:#fff;font-size:10px;font-family:monospace;align-items:center;justify-content:center;padding:0 3px"></div>';
   bur.onclick=dbgToggle;
   document.body.appendChild(bur);
@@ -915,7 +915,7 @@ function _dbgMostrarUI(){
   var iW=window.innerWidth,iH=window.innerHeight;
   var px=_dbgPos.x!==null?_dbgPos.x:iW-320-14;
   var py=_dbgPos.y!==null?_dbgPos.y:iH-380-80;
-  pan.style.cssText='position:fixed;left:'+px+'px;top:'+py+'px;width:310px;max-height:360px;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;z-index:3100;box-shadow:0 4px 20px rgba(0,0,0,0.5);touch-action:none';
+  pan.style.cssText='position:fixed;left:'+px+'px;top:'+py+'px;width:310px;max-height:360px;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;z-index:5500;box-shadow:0 4px 20px rgba(0,0,0,0.5);touch-action:none';
   pan.innerHTML=
     '<div id="dbg-hdr" style="background:#1e0c04;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:grab;border-bottom:0.5px solid rgba(255,255,255,0.12);flex-shrink:0">'+
       '<span style="font-size:13px">⠿</span>'+
@@ -3054,10 +3054,12 @@ function invCalc(inv){
 let _invMontosOcultos=false;
 function abrirOverlayInversiones(){
   document.getElementById('overlay-inversiones').style.display='block';
+  _backPush(cerrarOverlayInversiones);
   renderListaInversiones();
 }
 function cerrarOverlayInversiones(){
   document.getElementById('overlay-inversiones').style.display='none';
+  _backPop();
 }
 function toggleMontosInv(){
   _invMontosOcultos=!_invMontosOcultos;
@@ -3079,13 +3081,13 @@ function renderListaInversiones(){
   // Banners de vencimiento
   vencidas.forEach(inv=>{
     const calc=invCalc(inv);
-    html+=`<div style="background:#7a3a10;border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px">
+    html+=`<div style="background:var(--danger);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px">
       <span style="font-size:18px;flex-shrink:0">🔔</span>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:600;color:#fff;font-family:sans-serif">${escapeHtml(inv.nombre)} — venció ${inv.fechaVencimiento}</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.7);font-family:sans-serif;margin-top:2px">${_invMontosOcultos?'••••••':(fmxn(calc.total)+' disponibles')}</div>
       </div>
-      <button onclick="abrirAccionesVencimiento('${inv.id}')" style="background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-size:12px;font-family:sans-serif;cursor:pointer;flex-shrink:0">¿Qué hago?</button>
+      <button onclick="abrirAccionesVencimiento('${inv.id}')" style="background:rgba(254,250,240,0.15);border:none;border-radius:8px;padding:6px 10px;color:var(--bg);font-size:12px;font-family:sans-serif;cursor:pointer;flex-shrink:0">¿Qué hago?</button>
     </div>`;
   });
 
@@ -3094,7 +3096,7 @@ function renderListaInversiones(){
       <div style="font-size:44px;margin-bottom:14px">📈</div>
       <div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:8px">Sin inversiones registradas</div>
       <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.6;max-width:240px;margin:0 auto 20px">Registra tus CETES, pagarés, fondos o cuentas fintech para ver cómo crece tu dinero.</div>
-      <button onclick="abrirFormInversion()" style="background:#1a3a2a;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">＋ Registrar primera inversión</button>
+      <button onclick="abrirFormInversion()" style="background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">＋ Registrar primera inversión</button>
     </div>`;
     el.innerHTML=html;return;
   }
@@ -3104,57 +3106,57 @@ function renderListaInversiones(){
   const totalNeto=inversiones.filter(i=>i.plazoFijo).reduce((s,i)=>s+invCalc(i).neto,0);
   html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
     <div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif;text-transform:uppercase;letter-spacing:.5px">Total invertido</div>
-      <div style="font-size:24px;font-weight:600;color:#fff;font-family:sans-serif">${_invMontosOcultos?'••••••':fmxn(totalInv)}</div>
+      <div style="font-size:11px;color:rgba(254,250,240,0.65);font-family:sans-serif;text-transform:uppercase;letter-spacing:.5px">Total invertido</div>
+      <div style="font-size:24px;font-weight:600;color:var(--bg);font-family:sans-serif">${_invMontosOcultos?'••••••':fmxn(totalInv)}</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif">Rend. estimado</div>
-      <div style="font-size:14px;font-weight:600;color:#7ef5a8;font-family:sans-serif">${_invMontosOcultos?'••••':'+'+fmxn(totalNeto)}</div>
+      <div style="font-size:11px;color:rgba(254,250,240,0.65);font-family:sans-serif">Rend. estimado</div>
+      <div style="font-size:14px;font-weight:600;color:var(--miel);font-family:sans-serif">${_invMontosOcultos?'••••':'+'+fmxn(totalNeto)}</div>
     </div>
-    <button onclick="toggleMontosInv()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;padding:4px" title="${_invMontosOcultos?'Mostrar':'Ocultar'} montos">${_invMontosOcultos?'👁':'🙈'}</button>
+    <button onclick="toggleMontosInv()" style="background:none;border:none;color:rgba(254,250,240,0.6);font-size:18px;cursor:pointer;padding:4px" title="${_invMontosOcultos?'Mostrar':'Ocultar'} montos">${_invMontosOcultos?'👁':'🙈'}</button>
   </div>`;
 
   // Agrupar por dueño
   const _grpPersonal=inversiones.filter(i=>i.dueno!=='Casa'&&!i.compartida);
   const _grpHogar=inversiones.filter(i=>i.dueno==='Casa'||i.compartida);
   if(_grpPersonal.length&&_grpHogar.length){
-    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);font-family:sans-serif;margin:4px 0 8px">Personales</div>`;
+    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(254,250,240,0.5);font-family:sans-serif;margin:4px 0 8px">Personales</div>`;
   }
   const _invOrdenadas=[..._grpPersonal,...(_grpHogar.length&&_grpPersonal.length?[{_separator:true}]:[]),..._grpHogar];
   // Cards por inversión
   _invOrdenadas.forEach(inv=>{
-    if(inv._separator){html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);font-family:sans-serif;margin:14px 0 8px">Hogar</div>`;return;}
+    if(inv._separator){html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(254,250,240,0.5);font-family:sans-serif;margin:14px 0 8px">Hogar</div>`;return;}
     const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
     const calc=invCalc(inv);
     const oculto=_invMontosOcultos;
     const pct=calc.diasTotales>0?Math.round(calc.diasTranscurridos/calc.diasTotales*100):0;
     const vencida=inv.plazoFijo&&inv.fechaVencimiento&&inv.fechaVencimiento<=today()&&!inv.resuelta;
 
-    html+=`<div style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer" onclick="abrirDetalleInversion('${inv.id}')">
+    html+=`<div style="background:rgba(254,250,240,0.08);border:0.5px solid rgba(254,250,240,0.15);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer" onclick="abrirDetalleInversion('${inv.id}')">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:${inv.plazoFijo?'10':'4'}px">
         <span style="font-size:22px;flex-shrink:0">${tipo.e}</span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:600;color:#fff;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(inv.nombre)}</div>
+          <div style="font-size:14px;font-weight:600;color:var(--bg);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(inv.nombre)}</div>
           <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:sans-serif;margin-top:2px">${tipo.l}${inv.plazoFijo&&inv.fechaVencimiento?` · vence ${inv.fechaVencimiento}`:' · rendimiento diario'}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:15px;font-weight:600;color:#fff;font-family:sans-serif">${oculto?'••••••':fmxn(inv.monto)}</div>
-          <div style="font-size:11px;color:#7ef5a8;font-family:sans-serif;margin-top:2px">${oculto?'••••':(inv.plazoFijo?'+'+fmxn(calc.neto)+' est.':'~'+fmxn(calc.rendDiario)+'/día')}</div>
+          <div style="font-size:15px;font-weight:600;color:var(--bg);font-family:sans-serif">${oculto?'••••••':fmxn(inv.monto)}</div>
+          <div style="font-size:11px;color:var(--miel);font-family:sans-serif;margin-top:2px">${oculto?'••••':(inv.plazoFijo?'+'+fmxn(calc.neto)+' est.':'~'+fmxn(calc.rendDiario)+'/día')}</div>
         </div>
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">${inv.tasa}% anual</span>
         <span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">base ${inv.base||360}</span>
         ${inv.retieneisr?`<span style="font-size:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:10px;font-family:sans-serif">ISR ${inv.pctISR||0.9}%</span>`:''}
-        ${inv.reinversionAuto?`<span style="font-size:10px;background:rgba(126,245,168,0.15);color:#7ef5a8;padding:3px 8px;border-radius:10px;font-family:sans-serif">↺ auto</span>`:''}
+        ${inv.reinversionAuto?`<span style="font-size:10px;background:rgba(183,152,88,0.25);color:var(--miel);padding:3px 8px;border-radius:10px;font-family:sans-serif">↺ auto</span>`:''}
         ${vencida?`<span style="font-size:10px;background:rgba(210,100,30,0.3);color:#f5a87a;padding:3px 8px;border-radius:10px;font-family:sans-serif">Vencida</span>`:''}
       </div>
       ${inv.plazoFijo&&calc.diasTotales>0?`
       <div style="margin-top:10px">
-        <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:4px;overflow:hidden">
-          <div style="width:${pct}%;background:#7ef5a8;height:4px;border-radius:4px;transition:width .3s"></div>
+        <div style="background:rgba(254,250,240,0.15);border-radius:4px;height:4px;overflow:hidden">
+          <div style="width:${pct}%;background:var(--miel);height:4px;border-radius:4px;transition:width .3s"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,0.35);font-family:sans-serif;margin-top:3px">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(254,250,240,0.4);font-family:sans-serif;margin-top:3px">
           <span>${inv.fechaInicio}</span>
           <span>${calc.diasTranscurridos}/${calc.diasTotales} días (${pct}%)</span>
           <span>${inv.fechaVencimiento}</span>
@@ -3173,18 +3175,30 @@ function abrirDetalleInversion(id){
   const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
   const calc=invCalc(inv);
   const oculto=_invMontosOcultos;
+  // Bloque de proyección según tipo de instrumento
+  const _bloqueProyeccion = inv.plazoFijo ? `
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Proyección al vencimiento</div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Capital invertido</span><span style="color:var(--text)">${oculto?'••••••':fmxn(inv.monto)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento bruto (${calc.diasTotales}d)</span><span style="color:var(--text)">${oculto?'••••':'+'+fmxn(calc.bruto)}</span></div>
+    ${inv.retieneisr?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">ISR retenido (${inv.pctISR||0.9}%)</span><span style="color:var(--danger)">${oculto?'••••':'-'+fmxn(calc.isr)}</span></div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:15px;font-family:sans-serif;font-weight:700;padding:8px 0 2px"><span style="color:var(--text)">Recibirás</span><span style="color:var(--success)">${oculto?'••••••':fmxn(calc.total)}</span></div>
+  </div>` : `
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Rendimiento estimado</div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Saldo actual</span><span style="color:var(--text)">${oculto?'••••••':fmxn(inv.monto)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento diario est.</span><span style="color:var(--success)">${oculto?'••••':'~'+fmxn(calc.rendDiario)}/día</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento mensual est.</span><span style="color:var(--success)">${oculto?'••••':'~'+fmxn(calc.rendDiario*30)}/mes</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento anual est.</span><span style="color:var(--success)">${oculto?'••••':'~'+fmxn(calc.rendDiario*365)}</span></div>
+    ${inv.retieneisr?`<div style="font-size:11px;color:var(--muted);font-family:sans-serif;padding:6px 0">⚠ ISR ${inv.pctISR||0.9}% sobre capital se retiene por periodo. Estimados antes de ISR.</div>`:''}
+    <div style="font-size:11px;color:var(--muted);font-family:sans-serif;padding:4px 0">Tasa referencial ${inv.tasa}% — puede cambiar. Sin fecha de vencimiento fija.</div>
+  </div>`;
   let html=`<div style="text-align:center;margin-bottom:20px">
     <div style="font-size:40px;margin-bottom:8px">${tipo.e}</div>
     <div style="font-size:18px;font-weight:700;color:var(--text);font-family:sans-serif">${escapeHtml(inv.nombre)}</div>
     <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-top:4px">${tipo.l}</div>
   </div>
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
-    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Proyección al vencimiento</div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Capital invertido</span><span style="color:var(--text)">${oculto?'••••••':fmxn(inv.monto)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Rendimiento bruto</span><span style="color:var(--text)">${oculto?'••••':'+'+fmxn(calc.bruto)}</span></div>
-    ${inv.retieneisr?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">ISR retenido (${inv.pctISR||0.9}%)</span><span style="color:var(--danger)">${oculto?'••••':'-'+fmxn(calc.isr)}</span></div>`:''}
-    <div style="display:flex;justify-content:space-between;font-size:15px;font-family:sans-serif;font-weight:700;padding:8px 0 2px"><span style="color:var(--text)">Recibirás</span><span style="color:var(--success)">${oculto?'••••••':fmxn(calc.total)}</span></div>
-  </div>
+  ${_bloqueProyeccion}
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
     <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Parámetros del contrato</div>
     ${[
@@ -3281,9 +3295,11 @@ function abrirFormInversion(editId){
     renderSeleccionTipoInv();
   }
   document.getElementById('overlay-inv-form').style.display='block';
+  _backPush(cerrarFormInversion);
 }
 function cerrarFormInversion(){
   document.getElementById('overlay-inv-form').style.display='none';
+  _backPop();
   _invEditId=null;_invTipoActual=null;
 }
 
@@ -3573,11 +3589,11 @@ function invRecalc(){
   const neto=Math.max(0,bruto-isr);
   const total=monto+neto;
 
-  el.innerHTML=`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:12px;padding:12px 14px">
+  el.innerHTML=`<div style="background:rgba(183,152,88,0.08);border:1px solid rgba(183,152,88,0.2);border-radius:12px;padding:12px 14px">
     <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Proyección (${dias} días)</div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">Capital</span><span>${fmxn(monto)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">Rendimiento bruto</span><span>+${fmxn(bruto)}</span></div>
-    ${tieneISR?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(45,122,79,0.15)"><span style="color:var(--muted)">ISR retenido</span><span style="color:var(--danger)">-${fmxn(isr)}</span></div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(183,152,88,0.15)"><span style="color:var(--muted)">Capital</span><span>${fmxn(monto)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(183,152,88,0.15)"><span style="color:var(--muted)">Rendimiento bruto</span><span>+${fmxn(bruto)}</span></div>
+    ${tieneISR?`<div style="display:flex;justify-content:space-between;font-size:13px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid rgba(183,152,88,0.15)"><span style="color:var(--muted)">ISR retenido</span><span style="color:var(--danger)">-${fmxn(isr)}</span></div>`:''}
     <div style="display:flex;justify-content:space-between;font-size:15px;font-family:sans-serif;font-weight:700;padding:7px 0 2px"><span>Recibirás</span><span style="color:var(--success)">${fmxn(total)}</span></div>
   </div>`;
 }
@@ -6895,20 +6911,20 @@ function mostrarAvisoNuevaVersion(){
 
 <!-- ══ OVERLAY INVERSIONES ══ -->
 <div id="overlay-inversiones" style="display:none;position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div style="background:#1a3a2a;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
-    <button onclick="cerrarOverlayInversiones()" style="background:none;border:none;color:rgba(255,255,255,0.75);font-size:26px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">‹</button>
+  <div style="background:var(--p);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
+    <button onclick="cerrarOverlayInversiones()" style="background:none;border:none;color:rgba(254,250,240,0.8);font-size:26px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">‹</button>
     <div style="flex:1">
       <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif">Mis inversiones</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.5);font-family:'Helvetica Neue',sans-serif;margin-top:1px">Solo tú puedes ver esta sección</div>
+      <div style="font-size:11px;color:rgba(254,250,240,0.55);font-family:'Helvetica Neue',sans-serif;margin-top:1px">Solo tú puedes ver esta sección</div>
     </div>
-    <button onclick="abrirFormInversion()" style="background:none;border:0.5px solid rgba(255,255,255,0.3);border-radius:10px;padding:6px 12px;color:rgba(255,255,255,0.85);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">＋ Nueva</button>
+    <button onclick="abrirFormInversion()" style="background:none;border:0.5px solid rgba(254,250,240,0.3);border-radius:10px;padding:6px 12px;color:rgba(254,250,240,0.9);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">＋ Nueva</button>
   </div>
   <div id="inv-lista-container" style="padding:14px 14px 100px"></div>
 </div>
 
 <!-- ══ OVERLAY FORM INVERSIONES ══ -->
 <div id="overlay-inv-form" style="display:none;position:fixed;inset:0;z-index:5100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div style="background:#1a3a2a;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
+  <div style="background:var(--p);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
     <button onclick="cerrarFormInversion()" style="background:none;border:none;color:rgba(255,255,255,0.75);font-size:26px;cursor:pointer;padding:0;line-height:1">‹</button>
     <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif" id="inv-form-titulo">Nueva inversión</div>
   </div>
