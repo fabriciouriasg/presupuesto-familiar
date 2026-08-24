@@ -528,8 +528,8 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
     </div>
   </div>
   <!-- TAB METAS -->
-  <div id="tab-metas" class="tab-panel" style="padding:14px 14px calc(84px + env(safe-area-inset-bottom,0px))">
-    <div id="metas-content"></div>
+  <div id="tab-cuentas" class="tab-panel" style="padding:14px 14px calc(84px + env(safe-area-inset-bottom,0px))">
+    <div id="cuentas-content"></div>
   </div>
   <!-- NAV BOTTOM -->
   <div class="nav-fab">
@@ -543,8 +543,8 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <span class="nb-icon">📅</span><span>Historial</span>
       <span class="nb-dot" id="gastos-badge"></span>
     </button>
-    <button class="nav-bottom-item" onclick="switchTab('metas')" id="nbi-metas">
-      <span class="nb-icon">🎯</span><span>Metas</span>
+    <button class="nav-bottom-item" onclick="switchTab('cuentas')" id="nbi-cuentas">
+      <span class="nb-icon">💼</span><span>Cuentas</span>
     </button>
   </div>
 
@@ -1004,7 +1004,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 81';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 83';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1577,7 +1577,7 @@ function switchTab(t){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   const panel=document.getElementById('tab-'+t);if(panel)panel.classList.add('active');
   document.querySelectorAll('.nav-bottom-item').forEach(el=>el.classList.remove('active'));
-  const map={hoy:'nbi-hoy',historial:'nbi-historial',metas:'nbi-metas'};
+  const map={hoy:'nbi-hoy',historial:'nbi-historial',cuentas:'nbi-cuentas'};
   const nb=document.getElementById(map[t]);if(nb)nb.classList.add('active');
   // Renderizar el tab activo
   if(t==='hoy') _renderHoyContent();
@@ -1586,7 +1586,7 @@ function switchTab(t){
     // Se invalidan explícitamente vía invalidarHistorial() cuando se edita/borra un gasto pasado.
     _renderHistorialContent();
   }
-  else if(t==='metas') _renderMetasContent();
+  else if(t==='cuentas') renderCuentasTab();
 }
 function renderAll(){
   // Hoy siempre se actualiza (datos en memoria, sync)
@@ -1595,7 +1595,7 @@ function renderAll(){
   // Historial y Metas solo si su tab está activo (evita doble fetch)
   if(activeTab==='historial') _renderHistorialContent();
   initBuscador();
-  if(activeTab==='metas') _renderMetasContent();
+  if(activeTab==='cuentas') renderCuentasTab();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2247,11 +2247,19 @@ function submitRegistrarIngreso(){
   const nota=document.getElementById('inp-ingreso-fuente-nota').value.trim();
   if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
   if(!fecha){showToast('Selecciona una fecha');return;}
-  registrarIngresoFuente(_fuenteSeleccionada,monto,fecha,nota);
-  cerrarModalGenerico();
+  const fuenteId=_fuenteSeleccionada;
+  const fuente=(getCuentaStore().fuentesIngreso||[]).find(x=>x.id===fuenteId);
+  const fuenteNombre=fuente?fuente.nombre:(nota||'Ingreso');
   _fuenteSeleccionada=null;
-  renderSaldoCard();
-  showToast('Ingreso registrado ✓');
+  cerrarModalGenerico();
+  // Si hay cuentas configuradas, abrir repartidor
+  if(getCuentas().length>0){
+    abrirRepartidorIngreso(monto,fuenteId,fuenteNombre);
+  }else{
+    registrarIngresoFuente(fuenteId,monto,fecha,nota);
+    renderSaldoCard();
+    showToast('Ingreso registrado ✓');
+  }
 }
 
 // ── UI: Gestión de fuentes de ingreso y tarjetas ──
@@ -2967,18 +2975,394 @@ async function loadHistorialMeses(){
 // METAS
 // ════════════════════════════════════════════════════════════
 function rMetas(){_renderMetasContent();}
+
+// ══════════════════════════════════════════════════════════════════
+// CUENTAS — Rev 83
+// ══════════════════════════════════════════════════════════════════
+function cuentasKey(){return `pb_cuentas_${currentAcct}`;}
+function getCuentas(){return gls(cuentasKey())||[];}
+function saveCuentas(arr){sls(cuentasKey(),arr);}
+function getCuentaDefault(){
+  const arr=getCuentas();
+  return arr.find(c=>c.isDefault)||arr.find(c=>c.tipo!=='credito')||arr[0]||null;
+}
+function getCuentaById(id){return getCuentas().find(c=>c.id===id)||null;}
+
+// Tipos disponibles (TDC excluidas — viven en Tarjetas)
+const TIPOS_CUENTA=[
+  {v:'debito',  l:'Débito',   e:'🏦'},
+  {v:'ahorro',  l:'Ahorro',   e:'🐷'},
+  {v:'efectivo',l:'Efectivo', e:'💵'},
+];
+
+// ─ Saldo por cuenta ─
+function getSaldoCuenta(cuentaId){
+  const key=`pb_saldo_cta_${currentAcct}_${cuentaId}`;
+  return parseFloat(localStorage.getItem(key)||'0');
+}
+function setSaldoCuenta(cuentaId,val){
+  const key=`pb_saldo_cta_${currentAcct}_${cuentaId}`;
+  localStorage.setItem(key,String(Math.round(val*100)/100));
+}
+function ajustarSaldoCuenta(cuentaId,delta){
+  setSaldoCuenta(cuentaId,getSaldoCuenta(cuentaId)+delta);
+}
+function getSaldoTotalCuentas(){
+  return getCuentas().reduce((s,c)=>s+getSaldoCuenta(c.id),0);
+}
+
+// ─ Construir opciones de pago usando cuentas reales ─
+function construirOpcionesPago(){
+  const cuentas=getCuentas();
+  const tarjetas=(getCuentaStore().tarjetas)||[];
+  if(cuentas.length===0){
+    // Fallback: método legacy
+    const pagos=getPagos();
+    const claves=new Set(tarjetas.map(t=>normNombrePago(t.nombre)));
+    return[
+      ...pagos.filter(p=>!claves.has(normNombrePago(p))).map(p=>({label:p,tipo:'debito',id:null})),
+      ...tarjetas.map(t=>({label:t.nombre,tipo:'credito',id:t.id}))
+    ];
+  }
+  const def=getCuentaDefault();
+  const sorted=[...cuentas].sort((a,b)=>(b.isDefault?1:0)-(a.isDefault?1:0));
+  return[
+    ...sorted.map(ct=>({label:ct.nombre,tipo:'debito',id:ct.id,emoji:ct.emoji||''})),
+    ...tarjetas.map(t=>({label:t.nombre,tipo:'credito',id:t.id}))
+  ];
+}
+
+// ─ Render principal ─
+function renderCuentasTab(){
+  const el=document.getElementById('cuentas-content');
+  if(!el)return;
+  const cuentas=getCuentas();
+  if(cuentas.length===0){
+    el.innerHTML=`
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">💼</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:8px">Agrega tus cuentas</div>
+        <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.6;max-width:260px;margin-bottom:24px">Débito, ahorro o efectivo. Las tarjetas de crédito siguen en Historial → Tarjetas.</div>
+        <button onclick="abrirModalCuenta()" style="background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px 28px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">＋ Agregar primera cuenta</button>
+      </div>`;
+    return;
+  }
+  const personales=cuentas.filter(c=>!c.compartida);
+  const hogar=cuentas.filter(c=>c.compartida);
+  const total=getSaldoTotalCuentas();
+
+  const renderLista=(arr)=>arr.map(ct=>{
+    const saldo=getSaldoCuenta(ct.id);
+    const e=ct.emoji||TIPOS_CUENTA.find(t=>t.v===ct.tipo)?.e||'💼';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border);cursor:pointer" onclick="abrirDetalleCuenta('${ct.id}')">
+      <span style="font-size:22px;flex-shrink:0">${e}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;color:var(--text);font-family:sans-serif">${escapeHtml(ct.nombre)}${ct.isDefault?` <span style="font-size:10px;background:rgba(183,152,88,0.15);color:var(--p);padding:2px 7px;border-radius:8px;font-family:sans-serif">default</span>`:''}${ct.compartida?` <span style="font-size:10px;background:rgba(45,122,79,0.12);color:var(--success);padding:2px 7px;border-radius:8px;font-family:sans-serif">compartida</span>`:''}</div>
+      </div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif">${fmxn(saldo)}</div>
+      <span style="color:var(--muted);font-size:16px">›</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-family:sans-serif;letter-spacing:.5px;text-transform:uppercase">Total disponible</div>
+        <div style="font-size:26px;font-weight:700;color:var(--text);font-family:sans-serif">${fmxn(total)}</div>
+      </div>
+      <button onclick="abrirModalCuenta()" style="background:none;border:1px solid var(--border);border-radius:12px;padding:7px 14px;font-size:13px;font-family:sans-serif;color:var(--p);cursor:pointer">＋ Nueva</button>
+    </div>
+    ${personales.length?`<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:4px">Personales</div>${renderLista(personales)}`:''}
+    ${hogar.length?`<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-top:16px;margin-bottom:4px">Hogar</div>${renderLista(hogar)}`:''}
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button onclick="abrirModalTransferencia()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">↔ Transferir</button>
+      <button onclick="abrirMovimientosCuenta()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">📋 Movimientos</button>
+    </div>`;
+  buildPagoGrid();
+}
+
+// ─ Modal nueva/editar cuenta ─
+let _editCuentaId=null;
+function abrirModalCuenta(id){
+  _editCuentaId=id||null;
+  const ct=id?getCuentaById(id):null;
+  const tipoOpts=TIPOS_CUENTA.map(t=>`<div class="pago-chip${ct&&ct.tipo===t.v?' selected':(!ct&&t.v==='debito'?' selected':'')}" data-tipo="${t.v}" onclick="selChip(this,'#modal-cuenta-tipo-grid')" style="flex:1;text-align:center">${t.e} ${t.l}</div>`).join('');
+  let html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:16px">${ct?'Editar cuenta':'Nueva cuenta'}</div>
+    <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" id="inp-cta-nombre" placeholder="ej. HSBC débito" value="${ct?escapeHtml(ct.nombre):''}"></div>
+    <div class="form-group"><label class="form-label">Tipo</label><div id="modal-cuenta-tipo-grid" style="display:flex;gap:6px">${tipoOpts}</div></div>
+    <div class="form-group"><label class="form-label">Emoji (opcional)</label><input class="form-input" id="inp-cta-emoji" placeholder="🏦" maxlength="4" style="font-size:26px;text-align:center" value="${ct?ct.emoji||'':''}"></div>
+    <div class="form-group"><label class="form-label">Saldo inicial</label><input type="number" class="form-input" id="inp-cta-saldo" placeholder="0.00" inputmode="decimal" value="${ct?getSaldoCuenta(ct.id)||'':''}"></div>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">
+      <input type="checkbox" id="inp-cta-compartida" ${ct&&ct.compartida?'checked':''} style="accent-color:var(--p)"> Cuenta compartida con el hogar
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:20px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer">
+      <input type="checkbox" id="inp-cta-default" ${ct&&ct.isDefault?'checked':(!ct&&getCuentas().length===0?'checked':'')} style="accent-color:var(--p)"> Usar como cuenta default
+    </label>
+    <button onclick="submitCuenta()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600;margin-bottom:8px">${ct?'Guardar cambios':'Crear cuenta'}</button>
+    ${ct?`<button onclick="eliminarCuenta('${ct.id}')" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer">Eliminar cuenta</button>`:''}`;
+  mostrarModalGenerico(html);
+}
+function selChip(el,gridSel){
+  document.querySelectorAll(gridSel+' .pago-chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function submitCuenta(){
+  const nombre=document.getElementById('inp-cta-nombre').value.trim();
+  if(!nombre){showToast('Ingresa un nombre');return;}
+  const tipoEl=document.querySelector('#modal-cuenta-tipo-grid .pago-chip.selected');
+  const tipo=tipoEl?.dataset.tipo||'debito';
+  const emoji=document.getElementById('inp-cta-emoji').value.trim();
+  const saldoInicial=parseFloat(document.getElementById('inp-cta-saldo').value)||0;
+  const compartida=document.getElementById('inp-cta-compartida').checked;
+  const isDefault=document.getElementById('inp-cta-default').checked;
+  const cuentas=getCuentas();
+  if(_editCuentaId){
+    const idx=cuentas.findIndex(c=>c.id===_editCuentaId);
+    if(idx<0)return;
+    cuentas[idx]={...cuentas[idx],nombre,tipo,emoji,compartida,isDefault};
+  }else{
+    const id=uid();
+    cuentas.push({id,nombre,tipo,emoji,compartida,isDefault,creadoEn:today()});
+    setSaldoCuenta(id,saldoInicial);
+  }
+  if(isDefault)cuentas.forEach(c=>{if(c.id!==(_editCuentaId||cuentas[cuentas.length-1].id))c.isDefault=false;});
+  saveCuentas(cuentas);
+  cerrarModalGenerico();
+  renderCuentasTab();
+  showToast(_editCuentaId?'Cuenta actualizada ✓':'Cuenta creada ✓');
+}
+function eliminarCuenta(id){
+  if(!confirm('¿Eliminar esta cuenta? El historial de gastos se conserva.'))return;
+  const cuentas=getCuentas().filter(c=>c.id!==id);
+  saveCuentas(cuentas);
+  cerrarModalGenerico();
+  renderCuentasTab();
+  showToast('Cuenta eliminada');
+}
+
+// ─ Detalle de cuenta ─
+function abrirDetalleCuenta(id){
+  const ct=getCuentaById(id);if(!ct)return;
+  const saldo=getSaldoCuenta(id);
+  const e=ct.emoji||TIPOS_CUENTA.find(t=>t.v===ct.tipo)?.e||'💼';
+  // Movimientos: gastos con esta cuenta como pago
+  const movs=gastosMes.filter(g=>g.pago===ct.nombre||g.cuentaId===id).slice(0,10);
+  const movsHtml=movs.length?movs.map(g=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+    <div><div style="font-size:13px;color:var(--text);font-family:sans-serif">${escapeHtml(g.nota||g.categoria)}</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">${g.fecha}</div></div>
+    <span style="font-size:13px;color:var(--danger);font-family:sans-serif;font-weight:600">-${fmxn(g.monto)}</span>
+  </div>`).join(''):`<div style="font-size:13px;color:var(--muted);font-family:sans-serif;padding:12px 0">Sin movimientos este mes</div>`;
+  const html=`<div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:40px;margin-bottom:6px">${e}</div>
+    <div style="font-size:18px;font-weight:700;color:var(--text);font-family:sans-serif">${escapeHtml(ct.nombre)}</div>
+    <div style="font-size:28px;font-weight:700;color:var(--p);font-family:sans-serif;margin-top:6px">${fmxn(saldo)}</div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:20px">
+    <button onclick="cerrarModalGenerico();abrirModalCuenta('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer">✏️ Editar</button>
+    <button onclick="abrirAjusteManualSaldo('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer">💱 Ajustar saldo</button>
+  </div>
+  <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Movimientos este mes</div>
+  ${movsHtml}`;
+  mostrarModalGenerico(html);
+}
+function abrirAjusteManualSaldo(id){
+  const ct=getCuentaById(id);if(!ct)return;
+  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:16px">Ajustar saldo — ${escapeHtml(ct.nombre)}</div>
+    <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:12px">Saldo actual: ${fmxn(getSaldoCuenta(id))}</div>
+    <div class="form-group"><label class="form-label">Nuevo saldo</label><input type="number" class="form-input" id="inp-ajuste-saldo" placeholder="0.00" inputmode="decimal"></div>
+    <button onclick="submitAjusteManualSaldo('${id}')" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">Confirmar</button>`;
+  mostrarModalGenerico(html);
+}
+function submitAjusteManualSaldo(id){
+  const val=parseFloat(document.getElementById('inp-ajuste-saldo').value);
+  if(isNaN(val)){showToast('Ingresa un monto');return;}
+  setSaldoCuenta(id,val);
+  cerrarModalGenerico();
+  renderCuentasTab();
+  showToast('Saldo actualizado ✓');
+}
+
+// ─ Transferencias ─
+function abrirModalTransferencia(){
+  const cuentas=getCuentas();
+  if(cuentas.length<2){showToast('Necesitas al menos 2 cuentas para transferir');return;}
+  const opts=(selected)=>cuentas.map(c=>`<option value="${c.id}"${c.id===selected?' selected':''}>${escapeHtml(c.nombre)} (${fmxn(getSaldoCuenta(c.id))})</option>`).join('');
+  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:16px">Transferir entre cuentas</div>
+    <div class="form-group"><label class="form-label">Origen</label><select class="form-input" id="inp-trf-origen" style="padding:10px 12px">${opts(getCuentaDefault()?.id)}</select></div>
+    <div class="form-group"><label class="form-label">Destino</label><select class="form-input" id="inp-trf-destino" style="padding:10px 12px">${opts(cuentas.find(c=>c.id!==getCuentaDefault()?.id)?.id)}</select></div>
+    <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input" id="inp-trf-monto" placeholder="0.00" inputmode="decimal"></div>
+    <div class="form-group"><label class="form-label">Nota (opcional)</label><input class="form-input" id="inp-trf-nota" placeholder="ej. Pago renta"></div>
+    <button onclick="submitTransferencia()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">Confirmar transferencia</button>`;
+  mostrarModalGenerico(html);
+}
+async function submitTransferencia(){
+  const origenId=document.getElementById('inp-trf-origen').value;
+  const destinoId=document.getElementById('inp-trf-destino').value;
+  const monto=parseFloat(document.getElementById('inp-trf-monto').value);
+  const nota=document.getElementById('inp-trf-nota').value.trim();
+  if(!monto||monto<=0){showToast('Ingresa un monto válido');return;}
+  if(origenId===destinoId){showToast('Origen y destino deben ser distintos');return;}
+  const saldoOrigen=getSaldoCuenta(origenId);
+  if(monto>saldoOrigen){showToast(`Saldo insuficiente (${fmxn(saldoOrigen)})`);return;}
+  const idTrf=uid();
+  ajustarSaldoCuenta(origenId,-monto);
+  ajustarSaldoCuenta(destinoId,+monto);
+  // Registrar en localStorage
+  const trfs=gls(`pb_transferencias_${currentAcct}`)||[];
+  trfs.push({id:idTrf,fecha:today(),origenId,destinoId,monto,nota,quien:currentUser?.name||'Yo',ts:Date.now()});
+  sls(`pb_transferencias_${currentAcct}`,trfs);
+  // Sync al Sheet
+  if(isOnline){
+    try{
+      const userId=esHogar(currentAcct)?'casa':currentAcct;
+      await postAPI({action:'registrarTransferencia',token:TOKEN,userId,id:idTrf,fecha:today(),cuentaOrigen:origenId,cuentaDestino:destinoId,monto,nota,quien:currentUser?.name||'Yo'});
+    }catch(e){dbgLog('warn','transferencia','sync fallo: '+e.message);}
+  }
+  cerrarModalGenerico();
+  renderCuentasTab();
+  showToast(`Transferencia de ${fmxn(monto)} registrada ✓`);
+}
+
+// ─ Movimientos consolidados ─
+function abrirMovimientosCuenta(){
+  const trfs=gls(`pb_transferencias_${currentAcct}`)||[];
+  const cuentas=getCuentas();
+  const getNombre=id=>(cuentas.find(c=>c.id===id)||{nombre:'?'}).nombre;
+  const recientes=[...trfs].sort((a,b)=>b.ts-a.ts).slice(0,20);
+  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:16px">Transferencias</div>
+    ${recientes.length?recientes.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px;color:var(--text);font-family:sans-serif">${escapeHtml(getNombre(t.origenId))} → ${escapeHtml(getNombre(t.destinoId))}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:sans-serif">${t.fecha}${t.nota?' · '+escapeHtml(t.nota):''}</div>
+      </div>
+      <span style="font-size:14px;font-weight:600;color:var(--text);font-family:sans-serif">${fmxn(t.monto)}</span>
+    </div>`).join(''):`<div style="font-size:13px;color:var(--muted);font-family:sans-serif;padding:20px 0;text-align:center">Sin transferencias registradas</div>`}`;
+  mostrarModalGenerico(html);
+}
+
+// ─ Repartidor de ingreso ─
+function abrirRepartidorIngreso(monto, fuenteId, fuenteNombre){
+  const cuentas=getCuentas();
+  if(cuentas.length===0){
+    // Sin cuentas: flujo legacy
+    abrirRegistrarIngreso();
+    return;
+  }
+  // Cuotas TDC vencidas este mes (precargadas)
+  const tarjetas=getCuentaStore().tarjetas||[];
+  const cuotasMes=getTDCMovs().filter(m=>{
+    if(m.pagada||m.idGasto)return false;
+    const mes=mesActualStr();
+    return m.fecha&&m.fecha.startsWith(mes);
+  });
+  // Agrupar cuotas por tarjeta
+  const cuotasPorTarjeta={};
+  cuotasMes.forEach(c=>{
+    const t=tarjetas.find(t=>t.id===c.tarjetaId);
+    const nombre=t?t.nombre:'Tarjeta';
+    if(!cuotasPorTarjeta[c.tarjetaId])cuotasPorTarjeta[c.tarjetaId]={nombre,total:0,ids:[]};
+    cuotasPorTarjeta[c.tarjetaId].total+=c.montoCuota||0;
+    cuotasPorTarjeta[c.tarjetaId].ids.push(c.id);
+  });
+  const defId=getCuentaDefault()?.id||cuentas[0]?.id;
+  let html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:4px">Distribuir ingreso</div>
+    <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:16px">${escapeHtml(fuenteNombre||'Ingreso')} · ${fmxn(monto)}</div>
+    <div id="repartidor-rows">`;
+  // Una fila por cuenta
+  cuentas.forEach(ct=>{
+    const e=ct.emoji||TIPOS_CUENTA.find(t=>t.v===ct.tipo)?.e||'💼';
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)">
+      <span style="font-size:20px;flex-shrink:0">${e}</span>
+      <div style="flex:1;font-size:14px;color:var(--text);font-family:sans-serif">${escapeHtml(ct.nombre)}</div>
+      <input type="number" inputmode="decimal" class="form-input" data-cuentaid="${ct.id}" data-tipo="cuenta"
+        placeholder="$0" style="width:100px;padding:8px 10px;font-size:14px;text-align:right"
+        oninput="actualizarSinAsignar(${monto})" value="${ct.id===defId?'0':''}">
+    </div>`;
+  });
+  // Una fila por tarjeta con cuotas este mes
+  Object.entries(cuotasPorTarjeta).forEach(([tid,info])=>{
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)">
+      <span style="font-size:20px;flex-shrink:0">💳</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;color:var(--text);font-family:sans-serif">${escapeHtml(info.nombre)}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:sans-serif">Cuotas este mes</div>
+      </div>
+      <input type="number" inputmode="decimal" class="form-input" data-tarjetaid="${tid}" data-tipo="tarjeta"
+        placeholder="$0" style="width:100px;padding:8px 10px;font-size:14px;text-align:right"
+        oninput="actualizarSinAsignar(${monto})" value="${Math.round(info.total*100)/100}">
+    </div>`;
+  });
+  html+=`</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--border);margin-top:4px">
+      <span style="font-size:13px;color:var(--muted);font-family:sans-serif">Sin asignar</span>
+      <span id="sin-asignar-label" style="font-size:15px;font-weight:700;font-family:sans-serif;color:var(--p)">${fmxn(monto)}</span>
+    </div>
+    <button id="btn-confirmar-reparto" onclick="submitRepartidor(${monto},'${fuenteId||''}','${escapeHtml(fuenteNombre||'')}')" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">Confirmar reparto</button>`;
+  mostrarModalGenerico(html);
+  actualizarSinAsignar(monto);
+}
+function actualizarSinAsignar(total){
+  const inputs=document.querySelectorAll('#repartidor-rows input[type="number"]');
+  let asignado=0;
+  inputs.forEach(i=>asignado+=parseFloat(i.value)||0);
+  const sinAsignar=Math.round((total-asignado)*100)/100;
+  const lbl=document.getElementById('sin-asignar-label');
+  if(lbl){
+    lbl.textContent=fmxn(Math.abs(sinAsignar));
+    lbl.style.color=sinAsignar<-0.01?'var(--danger)':sinAsignar>0.01?'var(--s)':'var(--success)';
+  }
+  const btn=document.getElementById('btn-confirmar-reparto');
+  if(btn){
+    const def=getCuentaDefault();
+    btn.textContent=sinAsignar>0.01?`Confirmar (resto a ${def?.nombre||'cuenta default'})`:'Confirmar reparto';
+  }
+}
+async function submitRepartidor(total,fuenteId,fuenteNombre){
+  const inputs=document.querySelectorAll('#repartidor-rows input[type="number"]');
+  let asignado=0;
+  inputs.forEach(i=>asignado+=parseFloat(i.value)||0);
+  const sinAsignar=Math.round((total-asignado)*100)/100;
+  // Validar no exceder
+  if(sinAsignar<-0.01){showToast('El reparto excede el ingreso');return;}
+  const btn=document.getElementById('btn-confirmar-reparto');
+  if(btn){btn.disabled=true;btn.textContent='Procesando...';}
+  // Aplicar a cuentas
+  const cuentaInputs=document.querySelectorAll('#repartidor-rows input[data-tipo="cuenta"]');
+  const tarjetaInputs=document.querySelectorAll('#repartidor-rows input[data-tipo="tarjeta"]');
+  // Si hay sin asignar, va a la default
+  let totalCtaInputs=0;
+  cuentaInputs.forEach(i=>totalCtaInputs+=parseFloat(i.value)||0);
+  cuentaInputs.forEach(i=>{
+    const id=i.dataset.cuentaid;
+    const val=parseFloat(i.value)||0;
+    const esDef=getCuentaDefault()?.id===id;
+    const abonar=esDef?(val+sinAsignar):val;
+    if(abonar>0)ajustarSaldoCuenta(id,abonar);
+  });
+  // Registrar el ingreso total
+  const quien=currentUser?.name||userConfig?.nombre||'Yo';
+  await registrarIngresoFuente(fuenteId,total,today(),`Nómina ${fuenteNombre}`,quien);
+  cerrarModalGenerico();
+  renderCuentasTab();
+  renderSaldoCard();
+  showToast('Ingreso distribuido ✓');
+}
+
 function _renderMetasContent(){
   const metas=gls(`pb_metas_${currentAcct}`)||[];const activas=metas.filter(m=>m.activo!==false);
-  const el=document.getElementById('metas-content');
+  // Renderizar en settings si está abierto, o en el tab-cuentas (legado)
+  const inSettings=document.getElementById('screen-settings')?.classList.contains('active');
+  const elId=inSettings?'metas-content-settings':'metas-content';
+  const el=document.getElementById(elId);
+  if(!el)return;
   el.innerHTML=`<div class="metas-type-tabs"><div class="mtype-tab active" onclick="filterMetas('todas',this)">Todas</div><div class="mtype-tab" onclick="filterMetas('evento',this)">🎯 Eventos</div><div class="mtype-tab" onclick="filterMetas('reto',this)">💪 Retos</div><div class="mtype-tab" onclick="filterMetas('ahorro',this)">💰 Ahorro</div></div>
     <div id="metas-list">${activas.length?renderMetasList(activas):`<div class="empty-state"><div class="es-emoji">🎯</div><div class="es-text">Sin metas activas.<br>Crea tu primera meta abajo.</div></div>`}</div>
-    <div style="margin-top:12px"><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:10px">Nueva meta</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-      <div class="chip-big" onclick="openMetaModal('evento')" style="cursor:pointer"><span class="ce">🎯</span><span class="cn">Evento</span></div>
-      <div class="chip-big" onclick="openMetaModal('reto')" style="cursor:pointer"><span class="ce">💪</span><span class="cn">Reto</span></div>
-      <div class="chip-big" onclick="openMetaModal('ahorro')" style="cursor:pointer"><span class="ce">💰</span><span class="cn">Ahorro</span></div>
-    </div></div>`;
+    <button onclick="abrirNuevaMeta()" style="width:100%;border:1.5px dashed var(--border);background:none;border-radius:12px;padding:12px;font-size:13px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);cursor:pointer;margin-top:8px">＋ Nueva meta</button>`;
 }
+function abrirNuevaMeta(){
+  document.getElementById('modal-meta').classList.add('open');
+  renderModalMeta();
+}
+
 function renderMetasList(metas){const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});return metas.map(m=>{if(m.tipo==='evento')return renderMetaEvento(m);if(m.tipo==='reto')return renderMetaReto(m,totals);if(m.tipo==='ahorro')return renderMetaAhorro(m);return '';}).join('');}
 function renderMetaEvento(m){const ahorrado=m.ahorrado||0;const pct=m.meta>0?Math.min((ahorrado/m.meta)*100,100):0;const hoy=new Date();const fin=new Date(m.fechaFin+'T12:00:00');const mesesRestantes=Math.max(0,(fin.getFullYear()-hoy.getFullYear())*12+(fin.getMonth()-hoy.getMonth()));const faltante=Math.max(0,m.meta-ahorrado);const porMes=mesesRestantes>0?Math.ceil(faltante/mesesRestantes):faltante;const badge=pct>=100?'badge-ok':mesesRestantes<=1?'badge-over':'badge-ok';const badgeTxt=pct>=100?'Completada':mesesRestantes+' meses';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${escapeHtml(m.nombre)}</div><div class="mc-sub">Meta: ${fmxn(m.meta)} · ${m.fechaFin}</div></div><span class="mc-badge ${badge}">${badgeTxt}</span></div><div class="mc-prog"><div class="mc-prog-fill green" style="width:${pct.toFixed(1)}%"></div></div><div class="mc-nums"><span>${fmxn(ahorrado)} ahorrado</span><span>${fmxn(m.meta)}</span></div>${faltante>0&&mesesRestantes>0?`<div class="mc-detail">Necesitas <strong>${fmxn(porMes)}/mes</strong> para llegar a tiempo</div>`:''}<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-secondary" style="flex:1;padding:9px;font-size:12px" onclick="openAbono('${m.id}')">💰 Abonar</button><button style="flex:1;padding:9px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar</button></div></div>`;}
 function renderMetaReto(m,totals){const gastado=totals[m.categoria]||0;const pct=m.meta>0?Math.min((gastado/m.meta)*100,100):0;const logrado=gastado<=m.meta;const fc=pct>=100?'over':pct>=80?'warn':'';const badge=logrado?'badge-ok':'badge-over';return `<div class="meta-card"><div class="mc-top"><span class="mc-emoji">${m.emoji}</span><div class="mc-info"><div class="mc-name">${escapeHtml(m.nombre)}</div><div class="mc-sub">Límite reto: ${fmxn(m.meta)} este mes</div></div><span class="mc-badge ${badge}">${logrado?'✓ OK':'⚠️ Excedido'}</span></div><div class="mc-prog"><div class="mc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div><div class="mc-nums"><span>${fmxn(gastado)} gastado</span><span>/ ${fmxn(m.meta)}</span></div>${!logrado?`<div class="mc-detail" style="color:var(--danger)">Te pasaste <strong>${fmxn(gastado-m.meta)}</strong> de tu reto</div>`:`<div class="mc-detail">¡Vas bien! Te quedan <strong>${fmxn(m.meta-gastado)}</strong></div>`}<button style="margin-top:10px;width:100%;padding:8px;font-size:12px;border:none;background:rgba(161,58,30,0.08);color:var(--danger);border-radius:10px;cursor:pointer;font-family:'Helvetica Neue',sans-serif" onclick="archivarMeta('${m.id}')">Archivar reto</button></div>`;}
@@ -3020,15 +3404,7 @@ function buscarTarjetaPorNombre(nombre){
   const k=normNombrePago(nombre);
   return tarjetas.find(t=>normNombrePago(t.nombre)===k)||null;
 }
-function construirOpcionesPago(){
-  const pagos=getPagos();
-  const tarjetas=getCuentaStore().tarjetas||[];
-  const claves=new Set(tarjetas.map(t=>normNombrePago(t.nombre)));
-  return [
-    ...pagos.filter(p=>!claves.has(normNombrePago(p))).map(p=>({label:p,tipo:'debito'})),
-    ...tarjetas.map(t=>({label:t.nombre,tipo:'credito'}))
-  ];
-}
+// construirOpcionesPago — movida a módulo Cuentas (Rev 83)
 function esTarjetaCredito(nombre){
   return !!buscarTarjetaPorNombre(nombre);
 }
@@ -3247,7 +3623,7 @@ async function flushQueue(acct){
 // ════════════════════════════════════════════════════════════
 // SETTINGS
 // ════════════════════════════════════════════════════════════
-function openSettings(){showScreen('settings');renderSettings();}
+function openSettings(){showScreen('settings');renderSettings();_renderMetasContent();}
 function closeSettings(){showScreen('app');}
 function renderSettings(){
   const isCasa=esHogar(currentAcct);
@@ -3336,6 +3712,10 @@ function renderSettings(){
     </div>
     <div class="settings-section"><div class="settings-title">Límites del mes</div>
       <button class="btn-secondary" onclick="abrirEditorLimites()">📊 Editar límites de ${getMesNombre()}</button>
+    </div>
+    <div class="settings-section"><div class="settings-title">🎯 Metas de ahorro</div>
+      <div id="metas-content-settings" style="margin-bottom:8px"></div>
+      <button class="btn-secondary" onclick="abrirNuevaMeta()">＋ Nueva meta</button>
     </div>
     <div class="settings-section"><div class="settings-title">Datos</div>
       <button class="btn-secondary" onclick="exportCSV()" style="margin-bottom:10px">📥 Exportar gastos del mes (CSV)</button>
