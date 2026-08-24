@@ -3169,6 +3169,9 @@ function cerrarOverlayInversiones(){
     _invVistaActual='lista';
     renderListaInversiones();
     _invActualizarHeader('lista');
+    // Scroll al top al volver a la lista
+    const _ov=document.getElementById('overlay-inversiones');
+    if(_ov)_ov.scrollTop=0;
     return;
   }
   document.getElementById('overlay-inversiones').style.display='none';
@@ -3298,6 +3301,9 @@ function abrirDetalleInversion(id){
   if(!inv)return;
   _invVistaActual='detalle';
   _invActualizarHeader('detalle');
+  // Scroll del overlay al top antes de renderizar el detalle
+  const _ov=document.getElementById('overlay-inversiones');
+  if(_ov)_ov.scrollTop=0;
   const tipo=INV_TIPOS.find(t=>t.v===inv.tipo)||INV_TIPOS[0];
   const calc=invCalc(inv);
   const oculto=_invMontosOcultos;
@@ -3344,7 +3350,13 @@ function abrirDetalleInversion(id){
   </div>
   <button onclick="eliminarInversion('${id}')" style="width:100%;background:none;border:1px solid var(--danger);border-radius:12px;padding:11px;font-size:13px;font-family:sans-serif;color:var(--danger);cursor:pointer">Eliminar inversión</button>`;
   const _ctner=document.getElementById('inv-lista-container');
-  if(_ctner){_ctner.innerHTML=html;_ctner.scrollTop=0;}
+  if(_ctner){
+    _ctner.innerHTML=html;
+    _ctner.scrollTop=0;
+    // Asegurar que el overlay esté scrolleado al top
+    const _ov2=document.getElementById('overlay-inversiones');
+    if(_ov2)_ov2.scrollTop=0;
+  }
 }
 
 // ── Acciones al vencer ──
