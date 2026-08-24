@@ -1553,7 +1553,13 @@ async function loadData(){
     }else{
       // Cuenta personal — leer del Sheet propio, no del backend compartido
       const all=await getAllGastosPersonal(currentAcct);
-      gastos=all.filter(g=>g.mes&&g.mes.toLowerCase()===mes.toLowerCase());
+      // Filtrar por mes — comparar normalizado para evitar diferencias de capitalización/acentos
+      const mesNormLocal=mes.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      gastos=all.filter(g=>{
+        if(!g.mes)return false;
+        const gMesNorm=g.mes.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+        return gMesNorm===mesNormLocal;
+      });
       budgets={};
     }
     getCats().forEach(c=>{if(!budgets[c.id])budgets[c.id]=c.b||0;});
@@ -4523,7 +4529,26 @@ function toggleCat(i){
   renderSettings();buildCatGridModal();
 }
 
-function addPago(){const nombre=prompt('Nombre del banco o método:');if(!nombre||!nombre.trim())return;const data=getPagosStore();if(!data.pagos)data.pagos=[...DEFAULT_PAGOS];data.pagos.push(nombre.trim());persistPagosStore(data);buildPagoGrid();renderSettings();}
+function addPago(){
+  const html=`<div style="font-size:15px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:16px">Agregar método de pago</div>
+    <div class="form-group"><label class="form-label">Nombre del banco o método</label>
+    <input class="form-input" id="inp-add-pago" placeholder="ej. HSBC, Efectivo, BBVA..." autocomplete="off"></div>
+    <button onclick="submitAddPago()" class="btn-submit">Agregar</button>`;
+  mostrarModalGenerico(html);
+  setTimeout(()=>document.getElementById('inp-add-pago')?.focus(),300);
+}
+function submitAddPago(){
+  const nombre=document.getElementById('inp-add-pago')?.value.trim();
+  if(!nombre){showToast('Ingresa un nombre');return;}
+  const data=getPagosStore();
+  if(!data.pagos)data.pagos=[...DEFAULT_PAGOS];
+  data.pagos.push(nombre);
+  persistPagosStore(data);
+  cerrarModalGenerico();
+  buildPagoGrid();
+  renderSettings();
+  showToast('Método agregado ✓');
+}
 function removePago(i){const data=getPagosStore();if(!data.pagos)data.pagos=[...DEFAULT_PAGOS];data.pagos.splice(i,1);persistPagosStore(data);buildPagoGrid();renderSettings();}
 
 // ════════════════════════════════════════════════════════════
@@ -4695,7 +4720,22 @@ async function ejecutarUnirsePareja(){
 }
 function resolverMesLocal(fecha){const d=new Date(fecha+'T12:00:00');return MONTHS[d.getMonth()]+' '+d.getFullYear();}
 async function registrarGastoPersonal(email,gasto){const mes=resolverMesLocal(gasto.fecha);const id=uid();await appendToUserSheet(email,'Log_Gastos',[new Date().toLocaleString('es-MX'),gasto.fecha,gasto.categoria,gasto.monto,gasto.quien,gasto.nota||'',mes,id,gasto.pago||'',gasto.origen||'manual']);return{ok:true,id};}
-async function getAllGastosPersonal(email){const rows=await readUserSheet(email,'Log_Gastos','A:J');if(rows.length<=1)return[];return rows.slice(1).filter(r=>r[1]&&r[3]).map((r,i)=>({rowIndex:i+2,id:r[7]||'',fecha:String(r[1]||'').split('T')[0],categoria:r[2]||'',monto:parseFloat(r[3])||0,quien:r[4]||'',nota:r[5]||'',mes:r[6]||'',pago:r[8]||'',origen:r[9]||'manual'})).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:b.rowIndex-a.rowIndex;});}
+async function getAllGastosPersonal(email){
+  const rows=await readUserSheet(email,'Log_Gastos','A:J');
+  if(rows.length<=1)return[];
+  return rows.slice(1).filter(r=>r[1]&&r[3]).map((r,i)=>{
+    const fecha=String(r[1]||'').split('T')[0];
+    // Si la columna G (mes) está vacía, calcularlo desde la fecha
+    let mes=String(r[6]||'').trim();
+    if(!mes&&fecha){try{mes=resolverMesLocal(fecha);}catch(e){}}
+    return{
+      rowIndex:i+2,id:r[7]||'',fecha,
+      categoria:r[2]||'',monto:parseFloat(r[3])||0,
+      quien:r[4]||'',nota:r[5]||'',mes,
+      pago:r[8]||'',origen:r[9]||'manual'
+    };
+  }).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:b.rowIndex-a.rowIndex;});
+}
 async function getLogGastosGridId(email){
   const key=`pb_grid_id_${email}`;const saved=localStorage.getItem(key);if(saved!==null)return parseInt(saved);
   const sheetId=await getUserSheetId(email);
@@ -5208,13 +5248,26 @@ async function guardarEditCompleto(){
   const mes=resolverMesLocal(fecha);
   try{
     if(_editGastoActual.rowIndex&&isOnline){
+      // Renovar token si es cuenta personal
+      if(!esHogar(currentAcct)){
+        try{await getAccessToken();}catch(e){throw new Error('No se pudo renovar el permiso de acceso');}
+      }
       const res=esHogar(currentAcct)
         ?await postAPI({action:'editarGasto',token:TOKEN,rowIndex:_editGastoActual.rowIndex,fecha,categoria:catEl.dataset.cat,monto,nota:notaFinal,pago,quien,userId:currentAcct})
         :await editarGastoPersonal(currentAcct,_editGastoActual.rowIndex,{fecha,categoria:catEl.dataset.cat,monto,nota:notaFinal,mes,pago,quien});
       if(res.ok){showToast('Gasto actualizado ✓');cerrarEditGasto();invalidarHistorial();await loadData();}
-      else showToast('Error al guardar');
+      else showToast('Error al guardar — intenta de nuevo');
     }else{showToast('Sin conexión');}
-  }catch(e){showToast('Sin conexión');}
+  }catch(e){
+    console.error('editarGasto error:',e);
+    if(e.message&&e.message.includes('token')){
+      showToast('Sesión expirada — vuelve a entrar ↻');
+    }else if(e.message&&e.message.includes('403')){
+      showToast('Sin permiso para editar este gasto');
+    }else{
+      showToast('Error al guardar: '+( e.message||'sin conexión'));
+    }
+  }
   btn.disabled=false;btn.textContent='Guardar cambios';
 }
 
