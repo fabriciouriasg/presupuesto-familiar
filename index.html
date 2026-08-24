@@ -2339,6 +2339,8 @@ function abrirModalMesesCredito(tarjetaNombre,origen){
   document.getElementById('mmc-monto-header').textContent=monto>0?fmxn(monto):'';
   mmcResaltarBoton(pref);mmcActualizarPreview(pref,monto);
   document.getElementById('modal-meses-credito').classList.add('open');
+  // Rev 74: back button de Android = confirmar (no cancelar) la selección actual
+  _backPush(confirmarMesesCredito);
 }
 function selMesesCredito(meses){
   _mmcMeses=meses;mmcResaltarBoton(meses);
@@ -2350,6 +2352,13 @@ function confirmarMesesCredito(){
   document.getElementById('modal-meses-credito').classList.remove('open');
 }
 function cancelarMesesCredito(){
+  // Rev 74: cerrar el modal con atrás o fuera = confirmar con la selección actual
+  // Solo cancelar real si el usuario toca el botón ✕ explícito
+  mmcSavePref(_mmcTarjeta,_mmcMeses);
+  document.getElementById('modal-meses-credito').classList.remove('open');
+}
+function cancelarMesesCreditoReal(){
+  // Cancelar explícito: deseleccionar la tarjeta y volver al primer chip
   _mmcMeses=1;_mmcTarjeta=null;
   const gridId=_mmcOrigen==='drawer'?'#drawer-pago-grid':'#pago-grid';
   document.querySelectorAll(gridId+' .pago-chip').forEach((c,i)=>{c.classList.toggle('selected',i===0);});
@@ -3061,6 +3070,7 @@ async function submitDrawer(){
   const btn=document.getElementById('drawer-submit');btn.disabled=true;btn.textContent='Guardando...';
   // Si eligió una tarjeta de crédito, registrar como compra a crédito (no descuenta saldo hoy)
   const mesesCC=getMesesCreditoActivos();const tarjetaCC=getMesesCreditoTarjeta();
+  dbgLog('info','TDC submit','tarjetaCC='+tarjetaCC+' mesesCC='+mesesCC+' _mmcTarjeta='+_mmcTarjeta+' _mmcMeses='+_mmcMeses+' chip='+pago+' tipo='+pagoEl?.dataset.tipo);
   if(tarjetaCC&&mesesCC>=1){
     const t=buscarTarjetaPorNombre(tarjetaCC);
     if(t){
@@ -5528,7 +5538,7 @@ function mostrarAvisoNuevaVersion(){
       <div id="mmc-cuota-preview" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--text);text-align:center;display:none"></div>
 
       <button class="btn-submit" id="mmc-confirmar" onclick="confirmarMesesCredito()">Confirmar — 1 pago</button>
-      <button onclick="cancelarMesesCredito()" style="width:100%;background:none;border:none;color:var(--muted);font-size:12px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:10px 0 4px">Cancelar</button>
+      <button onclick="cancelarMesesCreditoReal()" style="width:100%;background:none;border:none;color:var(--muted);font-size:12px;font-family:'Helvetica Neue',sans-serif;cursor:pointer;padding:10px 0 4px">Cancelar</button>
     </div>
   </div>
 
