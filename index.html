@@ -293,6 +293,25 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-bottom-item .nb-dot.show{display:block}
 .nav-fab{position:static;height:0}
 .fab-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(64px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:var(--p);border:none;color:var(--bg);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;box-shadow:0 2px 8px rgba(84,41,22,0.25)}
+
+/* ── Conciliación ── */
+.conc-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;font-family:sans-serif}
+.conc-dot.active{background:var(--p);color:var(--bg)}
+.conc-dot.done{background:var(--success);color:#fff}
+.conc-dot.pending{background:var(--border);color:var(--muted)}
+.conc-line{flex:1;height:2px;background:var(--border);margin:0 4px}
+.conc-line.done{background:var(--success)}
+.conc-mov{border-radius:10px;padding:12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px}
+.conc-mov-warn{background:rgba(160,120,32,0.06);border:1px solid rgba(160,120,32,0.2)}
+.conc-mov-new{background:rgba(26,74,138,0.04);border:1px solid rgba(26,74,138,0.15)}
+.conc-mov-ok{background:rgba(45,122,79,0.04);border:1px solid rgba(45,122,79,0.12)}
+.conc-mov-bank{opacity:.65;background:rgba(161,58,30,0.04);border:1px solid rgba(161,58,30,0.1)}
+.conc-mov-title{font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif;display:flex;justify-content:space-between;align-items:baseline}
+.conc-mov-detail{font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:3px;line-height:1.5}
+.conc-mov-alert{font-size:11px;margin-top:4px;color:var(--s)}
+.conc-mov-actions{display:flex;gap:6px;margin-top:8px}
+.conc-mov-btn{flex:1;font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:5px;cursor:pointer;font-family:sans-serif;color:var(--muted)}
+.conc-mov-btn.active{background:rgba(107,45,14,0.08);border-color:var(--p);color:var(--p)}
 </style>
 </head>
 <body>
@@ -1006,7 +1025,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 88';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 89';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -3093,6 +3112,508 @@ async function loadHistorialMeses(){
 function rMetas(){_renderMetasContent();}
 
 // ══════════════════════════════════════════════════════════════════
+// CONCILIACIÓN DE ESTADO DE CUENTA — Rev 88
+// ══════════════════════════════════════════════════════════════════
+let _concTipo=null;       // 'credito' | 'debito'
+let _concInstrumento=null; // nombre tarjeta o id cuenta
+let _concResultado=null;   // resultado de Gemini
+let _concDecisiones={};    // { idMov: 'importar'|'ignorar'|'usarPDF'|'mantener' }
+
+function abrirConciliacion(tipo, instrumento){
+  _concTipo=tipo;
+  _concInstrumento=instrumento;
+  _concResultado=null;
+  _concDecisiones={};
+  document.getElementById('overlay-conciliacion').style.display='block';
+  _backPush(cerrarConciliacion);
+  // Actualizar header
+  const nombre=tipo==='credito'?instrumento:(getCuentaById(instrumento)?.nombre||instrumento);
+  document.getElementById('conc-header-sub').textContent=(tipo==='credito'?'Tarjeta de crédito':'Cuenta débito')+' · '+nombre;
+  _concSetStep(1);
+  _concRenderPaso1();
+}
+function cerrarConciliacion(){
+  document.getElementById('overlay-conciliacion').style.display='none';
+  _backPop();
+  _concResultado=null;_concDecisiones={};
+}
+function _concSetStep(n){
+  [1,2,3].forEach(i=>{
+    const dot=document.getElementById('conc-dot'+i);
+    const line=document.getElementById('conc-line'+i);
+    if(dot)dot.className='conc-dot '+(i<n?'done':i===n?'active':'pending');
+    if(line&&i<3)line.className='conc-line '+(i<n?'done':'');
+  });
+}
+
+// ── Paso 1: Subir PDF ──
+function _concRenderPaso1(){
+  _concSetStep(1);
+  document.getElementById('conc-header-titulo').textContent='Conciliar estado de cuenta';
+  const body=document.getElementById('conc-body');
+  body.innerHTML=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:4px">Sube el PDF</div>
+      <div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:14px;line-height:1.5">El periodo se detectará automáticamente del documento</div>
+
+      <label style="display:block;border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;margin-bottom:12px" id="conc-upload-zone">
+        <input type="file" id="conc-pdf-input" accept=".pdf,application/pdf" style="display:none" onchange="concOnPDFSelected(this)">
+        <div style="font-size:36px;margin-bottom:10px">📎</div>
+        <div style="font-size:14px;color:var(--text);font-family:sans-serif;margin-bottom:4px">Toca para seleccionar el PDF</div>
+        <div style="font-size:11px;color:var(--muted);font-family:sans-serif">Archivos .pdf · Máx. 10 MB</div>
+      </label>
+
+      <div id="conc-file-selected" style="display:none;background:rgba(45,122,79,0.06);border:1px solid rgba(45,122,79,0.2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;font-family:sans-serif;color:var(--text)">
+        📄 <span id="conc-file-name"></span>
+      </div>
+
+      <div style="background:rgba(183,152,88,0.08);border:1px solid rgba(183,152,88,0.2);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text);font-family:sans-serif;line-height:1.5">🔒 Tu PDF se procesa y se descarta inmediatamente. No se guarda en ningún servidor.</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif;margin-bottom:8px">¿El PDF tiene contraseña?</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div id="conc-pwd-si" onclick="concTogglePwd(true)" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer">Sí</div>
+          <div id="conc-pwd-no" onclick="concTogglePwd(false)" style="flex:1;text-align:center;padding:9px;border-radius:10px;font-size:13px;font-family:sans-serif;border:1px solid var(--p);background:rgba(107,45,14,0.08);color:var(--p);cursor:pointer">No</div>
+        </div>
+        <div id="conc-pwd-wrap" style="display:none">
+          <input type="password" id="conc-pwd-input" class="form-input" placeholder="ej. últimos 4 dígitos de tu RFC, fecha de nacimiento…">
+          <div style="font-size:11px;color:var(--muted);font-family:sans-serif;margin-top:4px">Solo se usa para abrir el PDF — nunca se almacena ni se envía</div>
+        </div>
+      </div>
+
+      <button id="conc-btn-analizar" onclick="concAnalizarPDF()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600" disabled>Analizar PDF</button>
+    </div>`;
+}
+let _concPDFBase64=null;
+function concOnPDFSelected(input){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>10*1024*1024){showToast('El PDF excede 10 MB');return;}
+  document.getElementById('conc-file-name').textContent=file.name;
+  document.getElementById('conc-file-selected').style.display='block';
+  document.getElementById('conc-upload-zone').style.borderColor='var(--success)';
+  document.getElementById('conc-btn-analizar').disabled=false;
+  document.getElementById('conc-btn-analizar').style.opacity='1';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    _concPDFBase64=e.target.result; // data URL completa
+  };
+  reader.readAsDataURL(file);
+}
+function concTogglePwd(hasPwd){
+  document.getElementById('conc-pwd-si').style.background=hasPwd?'rgba(107,45,14,0.08)':'var(--card)';
+  document.getElementById('conc-pwd-si').style.color=hasPwd?'var(--p)':'var(--muted)';
+  document.getElementById('conc-pwd-si').style.borderColor=hasPwd?'var(--p)':'var(--border)';
+  document.getElementById('conc-pwd-no').style.background=!hasPwd?'rgba(107,45,14,0.08)':'var(--card)';
+  document.getElementById('conc-pwd-no').style.color=!hasPwd?'var(--p)':'var(--muted)';
+  document.getElementById('conc-pwd-no').style.borderColor=!hasPwd?'var(--p)':'var(--border)';
+  document.getElementById('conc-pwd-wrap').style.display=hasPwd?'block':'none';
+}
+
+// ── Paso 2: Analizar PDF con Gemini ──
+async function concAnalizarPDF(){
+  if(!_concPDFBase64){showToast('Selecciona un PDF primero');return;}
+  const btn=document.getElementById('conc-btn-analizar');
+  btn.disabled=true;btn.textContent='Analizando…';
+  _concSetStep(2);
+  document.getElementById('conc-body').innerHTML=`
+    <div style="text-align:center;padding:60px 20px">
+      <div style="font-size:48px;margin-bottom:16px">⚙️</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:8px">Extrayendo movimientos</div>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.5">Gemini está leyendo tu estado de cuenta.<br>Esto puede tomar 10-20 segundos.</div>
+    </div>`;
+  try{
+    const cats=(userConfig?.categorias||[]).map(c=>({id:c.id,l:c.l}));
+    const res=await postAPI({
+      action:'leerEstadoCuenta',
+      token:TOKEN,
+      pdf:_concPDFBase64,
+      tipoCuenta:_concTipo,
+      categorias:cats
+    });
+    if(!res.ok){
+      _concRenderError(res.error||'No se pudo leer el PDF');
+      return;
+    }
+    _concResultado=res;
+    _concRenderSanityCheck();
+  }catch(e){
+    _concRenderError('Error de conexión: '+e.message);
+  }
+}
+function _concRenderError(msg){
+  _concSetStep(1);
+  document.getElementById('conc-body').innerHTML=`
+    <div style="background:rgba(161,58,30,0.06);border:1px solid rgba(161,58,30,0.2);border-radius:14px;padding:24px;text-align:center">
+      <div style="font-size:36px;margin-bottom:12px">⚠️</div>
+      <div style="font-size:15px;font-weight:600;color:var(--danger);font-family:sans-serif;margin-bottom:8px">No se pudo analizar el PDF</div>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.5;margin-bottom:16px">${escapeHtml(msg)}</div>
+      <div style="font-size:12px;color:var(--muted);font-family:sans-serif;line-height:1.5;margin-bottom:16px;text-align:left;background:var(--card);border-radius:8px;padding:10px 12px">
+        Si el PDF tiene contraseña: ábrelo en tu app del banco, exporta una copia sin contraseña, y súbela aquí.<br><br>
+        Si el error persiste: verifica que sea un PDF digital (no escaneado).
+      </div>
+      <button onclick="_concRenderPaso1()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:12px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600">Intentar con otro PDF</button>
+    </div>`;
+}
+
+// ── Paso 3: Sanity check ──
+function _concRenderSanityCheck(){
+  _concSetStep(3);
+  const r=_concResultado;
+  document.getElementById('conc-header-titulo').textContent='Revisa y decide';
+
+  // Clasificar movimientos
+  const gastos=_concTipo==='credito'?getTDCMovs():gastosMes;
+  const movs=r.movimientos||[];
+
+  movs.forEach((m,i)=>{
+    m._id='mov_'+i;
+    // Determinar tipo de movimiento para display
+    m._esBanco=(m.tipo==='interes'||m.tipo==='comision');
+    m._esAbono=(m.tipo==='abono'||m.tipo==='pago');
+    if(m._esBanco||m._esAbono){
+      m._estado='banco';
+      _concDecisiones[m._id]='ignorar';
+      return;
+    }
+    // Buscar coincidencia en PiggyBank
+    const match=_concBuscarMatch(m,gastos);
+    if(match&&Math.abs(match.monto-m.monto)<m.monto*0.05&&_fechaCerca(match.fecha,m.fecha,3)){
+      m._estado='ok';
+      m._match=match;
+      _concDecisiones[m._id]='ok';
+    }else if(match){
+      m._estado='diff';
+      m._match=match;
+      _concDecisiones[m._id]='usarPDF'; // default: confiar en PDF
+    }else{
+      m._estado='nuevo';
+      _concDecisiones[m._id]='importar';
+      // Sugerir categoría basada en descripción
+      m._catSugerida=_concSugerirCategoria(m.descripcion);
+      m._catSeleccionada=m._catSugerida;
+    }
+  });
+
+  const ok=movs.filter(m=>m._estado==='ok');
+  const diff=movs.filter(m=>m._estado==='diff');
+  const nuevos=movs.filter(m=>m._estado==='nuevo');
+  const banco=movs.filter(m=>m._estado==='banco');
+
+  let html=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:4px">${escapeHtml(r.banco||'Estado de cuenta')}</div>`;
+
+  // Periodo detectado
+  if(r.periodoInicio||r.periodoFin){
+    html+=`<div style="background:rgba(45,122,79,0.08);border:1px solid rgba(45,122,79,0.2);border-radius:8px;padding:9px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;color:var(--success);font-family:sans-serif;font-weight:600;margin-bottom:2px">📅 Periodo detectado</div>
+        <div style="font-size:13px;color:var(--text);font-family:sans-serif">${r.periodoInicio||''} — ${r.periodoFin||''}</div>
+      </div>
+      <button onclick="concCorregirPeriodo()" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:sans-serif;text-decoration:underline">Corregir</button>
+    </div>`;
+  }
+
+  // Resumen stats
+  html+=`<div style="display:flex;gap:8px">
+    <div style="flex:1;text-align:center;background:rgba(45,122,79,0.06);border-radius:8px;padding:8px">
+      <div style="font-size:18px;font-weight:600;color:var(--success)">${ok.length}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:sans-serif">✅ Coinciden</div>
+    </div>
+    <div style="flex:1;text-align:center;background:rgba(160,120,32,0.06);border-radius:8px;padding:8px">
+      <div style="font-size:18px;font-weight:600;color:var(--s)">${diff.length}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:sans-serif">⚠️ Difieren</div>
+    </div>
+    <div style="flex:1;text-align:center;background:rgba(26,74,138,0.06);border-radius:8px;padding:8px">
+      <div style="font-size:18px;font-weight:600;color:#1a4a8a">${nuevos.length}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:sans-serif">🆕 Nuevos</div>
+    </div>
+  </div></div>`;
+
+  // ── Difieren ──
+  if(diff.length){
+    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin:14px 0 8px">⚠️ Difieren — decide cuál es correcto</div>`;
+    diff.forEach(m=>{
+      html+=_concRenderMovDiff(m);
+    });
+  }
+
+  // ── Nuevos ──
+  if(nuevos.length){
+    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin:14px 0 8px">🆕 No registrados — selecciona los que importar</div>`;
+    nuevos.forEach(m=>{
+      html+=_concRenderMovNuevo(m);
+    });
+  }
+
+  // ── Banco/comisiones ──
+  if(banco.length){
+    html+=`<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin:14px 0 8px">🏦 Cargos del banco</div>`;
+    banco.forEach(m=>{
+      html+=`<div class="conc-mov conc-mov-bank">
+        <input type="checkbox" id="chk_${m._id}" onchange="concToggleDecision('${m._id}',this.checked?'importar':'ignorar')">
+        <div class="conc-mov-info" style="flex:1;min-width:0">
+          <div class="conc-mov-title"><span>${escapeHtml(m.descripcion)}</span><span style="color:var(--danger)">-${fmxn(m.monto)}</span></div>
+          <div class="conc-mov-detail">${m.fecha} · ${m.tipo==='interes'?'Intereses':'Comisión/anualidad'} · desmarcado por default</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // ── Coinciden (colapsado) ──
+  if(ok.length){
+    html+=`<details style="margin:14px 0;border-top:1px solid var(--border)">
+      <summary style="list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:12px;color:var(--muted);font-family:sans-serif">
+        <span>✅ Ver ${ok.length} movimiento${ok.length!==1?'s':''} que ya coinciden</span><span>▾</span>
+      </summary>
+      <div>
+        ${ok.map(m=>`<div class="conc-mov conc-mov-ok">
+          <div style="flex:1;min-width:0">
+            <div class="conc-mov-title"><span>${escapeHtml(m.descripcion)}</span><span>${fmxn(m.monto)}</span></div>
+            <div class="conc-mov-detail">${m.fecha} · ✅ Registrado en PiggyBank</div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </details>`;
+  }
+
+  // Resumen y botón confirmar
+  const totalImportar=nuevos.filter(m=>_concDecisiones[m._id]==='importar').length+
+    diff.filter(m=>_concDecisiones[m._id]==='usarPDF').length;
+  html+=`<div style="background:rgba(107,45,14,0.05);border:1px solid rgba(107,45,14,0.1);border-radius:10px;padding:12px;margin:14px 0" id="conc-resumen-box">
+    ${_concTextoResumen()}
+  </div>
+  <button onclick="concConfirmarImportacion()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:13px;font-size:14px;font-family:sans-serif;cursor:pointer;font-weight:600" id="conc-btn-confirmar">Confirmar importación</button>
+  <div style="margin-top:8px;text-align:center"><span style="font-size:12px;color:var(--muted);cursor:pointer;font-family:sans-serif" onclick="_concRenderPaso1()">← Subir otro PDF</span></div>`;
+
+  document.getElementById('conc-body').innerHTML=html;
+}
+
+function _concRenderMovDiff(m){
+  return `<div class="conc-mov conc-mov-warn">
+    <input type="checkbox" id="chk_${m._id}" checked>
+    <div style="flex:1;min-width:0">
+      <div class="conc-mov-title"><span>${escapeHtml(m.descripcion)}</span><span>${fmxn(m.monto)}</span></div>
+      <div class="conc-mov-detail">PDF: ${m.fecha}${m.esMSI?` · ${m.msiCuotas} MSI · cuota ${m.msiCuotaActual||1}/${m.msiCuotas} · ${fmxn(m.msiMontoCuota)}/mes`:' · Contado'}</div>
+      <div class="conc-mov-alert">⚠️ PiggyBank: ${fmxn(m._match?.monto||0)} · ${m._match?.fecha||''}</div>
+      <div class="conc-mov-actions">
+        <button class="conc-mov-btn active" id="btn_pdf_${m._id}" onclick="concSelDiff('${m._id}','usarPDF')">✓ Usar PDF</button>
+        <button class="conc-mov-btn" id="btn_pb_${m._id}" onclick="concSelDiff('${m._id}','mantener')">Mantener actual</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _concRenderMovNuevo(m){
+  const cat=m._catSeleccionada?getCat(m._catSeleccionada):null;
+  const catLabel=cat?cat.e+' '+cat.l:'Sin categoría';
+  const msiInfo=m.esMSI?`<div class="conc-mov-detail">${m.msiCuotas} MSI · cuota ${m.msiCuotaActual||1}/${m.msiCuotas} · ${fmxn(m.msiMontoCuota)}/mes · total ${fmxn(m.msiTotal||m.monto)}</div>`:'';
+  return `<div class="conc-mov conc-mov-new">
+    <input type="checkbox" id="chk_${m._id}" checked onchange="concToggleDecision('${m._id}',this.checked?'importar':'ignorar');_concActualizarResumen()">
+    <div style="flex:1;min-width:0">
+      <div class="conc-mov-title"><span>${escapeHtml(m.descripcion)}</span><span>${fmxn(m.monto)}</span></div>
+      <div class="conc-mov-detail">${m.fecha} · ${m.esMSI?m.msiCuotas+' MSI':'Contado'}</div>
+      ${msiInfo}
+      <div class="conc-mov-detail" style="margin-top:4px">Categoría: <span style="color:var(--p);cursor:pointer;text-decoration:underline" onclick="concCambiarCategoria('${m._id}')">${escapeHtml(catLabel)} ›</span></div>
+    </div>
+  </div>`;
+}
+
+function concSelDiff(id, decision){
+  _concDecisiones[id]=decision;
+  const btnPDF=document.getElementById('btn_pdf_'+id);
+  const btnPB=document.getElementById('btn_pb_'+id);
+  if(btnPDF)btnPDF.className='conc-mov-btn'+(decision==='usarPDF'?' active':'');
+  if(btnPB)btnPB.className='conc-mov-btn'+(decision==='mantener'?' active':'');
+  _concActualizarResumen();
+}
+function concToggleDecision(id,decision){
+  _concDecisiones[id]=decision;
+  _concActualizarResumen();
+}
+function _concTextoResumen(){
+  const movs=_concResultado?.movimientos||[];
+  const nImportar=movs.filter(m=>_concDecisiones[m._id]==='importar').length;
+  const nPDF=movs.filter(m=>_concDecisiones[m._id]==='usarPDF').length;
+  const nIgnorar=movs.filter(m=>_concDecisiones[m._id]==='ignorar').length;
+  const nMSI=movs.filter(m=>_concDecisiones[m._id]==='importar'&&m.esMSI).length;
+  return `<div style="font-size:12px;color:var(--text);font-family:sans-serif;font-weight:600;margin-bottom:4px">Se importará:</div>
+    <div style="font-size:12px;color:var(--muted);font-family:sans-serif;line-height:1.8">
+      ${nImportar} movimiento${nImportar!==1?'s':''} nuevos${nMSI>0?` (${nMSI} con MSI → Cuotas_TDC)`:''}<br>
+      ${nPDF} diferencia${nPDF!==1?'s':''} corregida${nPDF!==1?'s':''} con dato del PDF<br>
+      ${nIgnorar} cargo${nIgnorar!==1?'s':''} ignorado${nIgnorar!==1?'s':''}
+    </div>`;
+}
+function _concActualizarResumen(){
+  const box=document.getElementById('conc-resumen-box');
+  if(box)box.innerHTML=_concTextoResumen();
+}
+function concCorregirPeriodo(){
+  const html=`<div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:12px">Corregir periodo</div>
+    <div class="form-group"><label class="form-label">Inicio del periodo</label><input type="date" class="form-input" id="conc-periodo-ini" value="${_concResultado?.periodoInicio||''}"></div>
+    <div class="form-group"><label class="form-label">Fin del periodo</label><input type="date" class="form-input" id="conc-periodo-fin" value="${_concResultado?.periodoFin||''}"></div>
+    <button onclick="concGuardarPeriodo()" class="btn-submit">Guardar</button>`;
+  mostrarModalGenerico(html);
+}
+function concGuardarPeriodo(){
+  if(_concResultado){
+    _concResultado.periodoInicio=document.getElementById('conc-periodo-ini')?.value||_concResultado.periodoInicio;
+    _concResultado.periodoFin=document.getElementById('conc-periodo-fin')?.value||_concResultado.periodoFin;
+  }
+  cerrarModalGenerico();
+  _concRenderSanityCheck();
+}
+function concCambiarCategoria(movId){
+  const cats=(userConfig?.categorias||[]).filter(c=>c.active!==false);
+  const html=`<div style="font-size:15px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:12px">Cambiar categoría</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${cats.map(cat=>`<div onclick="concAsignarCategoria('${movId}','${cat.id}')" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;cursor:pointer">
+        <span style="font-size:18px">${cat.e}</span>
+        <span style="font-size:13px;font-family:sans-serif;color:var(--text)">${escapeHtml(cat.l)}</span>
+      </div>`).join('')}
+    </div>`;
+  mostrarModalGenerico(html);
+}
+function concAsignarCategoria(movId,catId){
+  const movs=_concResultado?.movimientos||[];
+  const m=movs.find(x=>x._id===movId);
+  if(m)m._catSeleccionada=catId;
+  cerrarModalGenerico();
+  _concRenderSanityCheck();
+}
+
+// ── Helpers ──
+function _concBuscarMatch(mov,gastos){
+  const desc=mov.descripcion.toLowerCase();
+  // Buscar por monto exacto o descripción similar
+  return gastos.find(g=>{
+    const gDesc=(g.nota||g.descripcion||'').toLowerCase();
+    const montoOk=Math.abs(g.monto-mov.monto)<mov.monto*0.05;
+    const descOk=gDesc.includes(desc.substring(0,10))||desc.includes(gDesc.substring(0,10));
+    return montoOk&&descOk;
+  })||gastos.find(g=>Math.abs(g.monto-mov.monto)<mov.monto*0.05&&_fechaCerca(g.fecha,mov.fecha,5));
+}
+function _fechaCerca(f1,f2,dias){
+  try{
+    const d1=new Date(f1+'T12:00:00'),d2=new Date(f2+'T12:00:00');
+    return Math.abs(d1-d2)<dias*24*60*60*1000;
+  }catch(e){return false;}
+}
+function _concSugerirCategoria(desc){
+  const d=desc.toLowerCase();
+  const cats=userConfig?.categorias||[];
+  // Mapeo básico de palabras clave
+  const kw=[
+    {k:['oxxo','walmart','chedraui','soriana','costco','superama','la comer','bodega','aurrera'],cat:'despensa'},
+    {k:['uber eats','didi food','rappi','cornershop','just eat'],cat:'salidas'},
+    {k:['spotify','netflix','apple','amazon prime','disney','hbo','crunchyroll','paramount'],cat:'entretenimiento'},
+    {k:['uber','didi','cabify','taxi','metro','metrobus'],cat:'transporte'},
+    {k:['amazon','mercado libre','liverpool','palacio','sears','elektra'],cat:'amazon'},
+    {k:['pemex','bp','shell','total','mobil','gasolina','gas station'],cat:'gasolina'},
+    {k:['farmacia','guadalajara','benavides','del ahorro','similares','cruz verde'],cat:'salud'},
+    {k:['luz','cfe','telmex','telnor','izzi','megacable','totalplay','att','telcel','movistar'],cat:'hogar'},
+    {k:['restaurante','restaurant','sushi','pizza','burger','coffee','starbucks','vips','sanborns'],cat:'salidas'},
+  ];
+  for(const rule of kw){
+    if(rule.k.some(k=>d.includes(k))){
+      const cat=cats.find(c=>c.id===rule.cat||c.l.toLowerCase().includes(rule.cat));
+      if(cat)return cat.id;
+    }
+  }
+  return cats[0]?.id||null;
+}
+
+// ── Confirmar importación ──
+async function concConfirmarImportacion(){
+  const btn=document.getElementById('conc-btn-confirmar');
+  if(btn){btn.disabled=true;btn.textContent='Procesando…';}
+  const movs=_concResultado?.movimientos||[];
+  const resultados={importados:0,corregidos:0,errores:[]};
+  const quien=currentUser?.name||userConfig?.nombre||'Yo';
+
+  for(const m of movs){
+    const decision=_concDecisiones[m._id];
+    try{
+      if(decision==='importar'){
+        if(m.esMSI&&_concTipo==='credito'){
+          // Registrar como compra a MSI en Cuotas_TDC
+          await crearCuotasTDC(
+            _concInstrumento,quien,
+            m.msiTotal||m.monto,
+            m.msiCuotas||1,
+            m.fecha,
+            m.descripcion,
+            m._catSeleccionada||''
+          );
+        }else{
+          // Registrar como gasto normal
+          await registrarGastoYSync({
+            fecha:m.fecha,
+            categoria:m._catSeleccionada||getCats()[0]?.id||'varios',
+            monto:m.monto,
+            quien,
+            nota:m.descripcion,
+            pago:_concInstrumento,
+            origen:'conciliacion'
+          });
+        }
+        resultados.importados++;
+      }else if(decision==='usarPDF'&&m._match?.rowIndex){
+        // Actualizar gasto existente con dato del PDF
+        const res=esHogar(currentAcct)
+          ?await postAPI({action:'editarGasto',token:TOKEN,rowIndex:m._match.rowIndex,
+              fecha:m.fecha,categoria:m._match.categoria,monto:m.monto,
+              nota:m._match.nota||m.descripcion,pago:m._match.pago||_concInstrumento,
+              quien:m._match.quien||quien,userId:currentAcct})
+          :await editarGastoPersonal(currentAcct,m._match.rowIndex,{
+              fecha:m.fecha,categoria:m._match.categoria,monto:m.monto,
+              nota:m._match.nota||m.descripcion,pago:m._match.pago||_concInstrumento,
+              quien:m._match.quien||quien});
+        if(res.ok)resultados.corregidos++;
+      }
+    }catch(e){
+      resultados.errores.push(m.descripcion+': '+e.message);
+    }
+  }
+
+  // Resultado final
+  await loadData();
+  _concRenderResultado(resultados);
+}
+
+function concVerHistorial(){
+  const vista=_concTipo==='credito'?'tarjetas':'gastos';
+  cerrarConciliacion();
+  setHistorialVista(vista);
+}
+function _concRenderResultado(res){
+  const nMSI=(_concResultado?.movimientos||[]).filter(m=>_concDecisiones[m._id]==='importar'&&m.esMSI).length;
+  document.getElementById('conc-body').innerHTML=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:12px">✅</div>
+        <div style="font-size:17px;font-weight:600;color:var(--text);font-family:sans-serif;margin-bottom:8px">Conciliación completada</div>
+        <div style="font-size:13px;color:var(--muted);font-family:sans-serif;line-height:1.8">
+          ${res.importados} movimiento${res.importados!==1?'s':''} importado${res.importados!==1?'s':''}<br>
+          ${nMSI>0?nMSI+' compra'+( nMSI!==1?'s':'')+' MSI → Cuotas_TDC<br>':''}
+          ${res.corregidos>0?res.corregidos+' diferencia'+( res.corregidos!==1?'s':'')+' corregida'+( res.corregidos!==1?'s':'')+'<br>':''}
+          ${res.errores.length>0?`<span style="color:var(--danger)">${res.errores.length} error${res.errores.length!==1?'es':''}</span><br>`:''}
+        </div>
+      </div>
+      ${res.errores.length>0?`<div style="background:rgba(161,58,30,0.06);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--danger);font-family:sans-serif;line-height:1.6">${res.errores.map(e=>escapeHtml(e)).join('<br>')}</div>`:''}
+      <div style="display:flex;gap:8px">
+        <button onclick="concVerHistorial()" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer;color:var(--text)">Ver historial</button>
+        <button onclick="cerrarConciliacion()" style="flex:1;background:var(--p);color:var(--bg);border:none;border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer;font-weight:600">Listo</button>
+      </div>
+    </div>`;
+  _concSetStep(3);
+}
+
+
+// ══════════════════════════════════════════════════════════════════
 // INVERSIONES — Rev 83
 // ══════════════════════════════════════════════════════════════════
 const INV_KEY = () => `pb_inversiones_${currentAcct}`;
@@ -4013,10 +4534,11 @@ function abrirDetalleCuenta(id){
     <div style="font-size:18px;font-weight:700;color:var(--text);font-family:sans-serif">${escapeHtml(ct.nombre)}</div>
     <div style="font-size:28px;font-weight:700;color:var(--p);font-family:sans-serif;margin-top:6px">${fmxn(saldo)}</div>
   </div>
-  <div style="display:flex;gap:8px;margin-bottom:20px">
+  <div style="display:flex;gap:8px;margin-bottom:8px">
     <button onclick="cerrarModalGenerico();abrirModalCuenta('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer">✏️ Editar</button>
     <button onclick="abrirAjusteManualSaldo('${id}')" style="flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer">💱 Ajustar saldo</button>
   </div>
+  <button onclick="cerrarModalGenerico();abrirConciliacion('debito','${id}')" style="width:100%;background:none;border:0.5px dashed var(--border);border-radius:12px;padding:10px;font-size:13px;font-family:sans-serif;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px">📄 Conciliar estado de cuenta</button>
   <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:8px">Movimientos este mes</div>
   ${movsHtml}`;
   mostrarModalGenerico(html);
@@ -6603,7 +7125,10 @@ async function renderSeccionTarjetas(){
             <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(tk.nombre)}</span>
             ${vencidas.length>0?`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(210,160,60,0.15);color:var(--s);font-weight:500">${vencidas.length} vencida${vencidas.length!==1?'s':''}</span>`:''}
           </div>
-          ${libreEn?`<span style="font-size:10px;color:var(--muted);font-family:sans-serif">libre ${libreEn}</span>`:''}
+          <div style="display:flex;align-items:center;gap:6px">
+            ${libreEn?`<span style="font-size:10px;color:var(--muted);font-family:sans-serif">libre ${libreEn}</span>`:''}
+            <button onclick="abrirConciliacion('credito','${tk.nombre}')" style="background:none;border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--muted);font-family:sans-serif">📄</button>
+          </div>
         </div>
         <div style="display:flex;gap:16px">
           <div><div style="font-size:10px;color:var(--muted);font-family:sans-serif">este mes</div><div style="font-size:13px;font-weight:500;color:var(--acc)">${fmxn(totalEste)}</div></div>
@@ -7141,6 +7666,26 @@ function mostrarAvisoNuevaVersion(){
     <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif" id="inv-form-titulo">Nueva inversión</div>
   </div>
   <div id="inv-form-body" style="padding:16px 14px 100px"></div>
+</div>
+
+<!-- ══ OVERLAY CONCILIACIÓN ══ -->
+<div id="overlay-conciliacion" style="display:none;position:fixed;inset:0;z-index:5200;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:var(--p);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1">
+    <button onclick="cerrarConciliacion()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:26px;cursor:pointer;padding:0;line-height:1">‹</button>
+    <div style="flex:1">
+      <div id="conc-header-titulo" style="font-size:16px;font-weight:600;color:#fff;font-family:sans-serif">Conciliar estado de cuenta</div>
+      <div id="conc-header-sub" style="font-size:11px;color:rgba(255,255,255,0.55);font-family:sans-serif;margin-top:1px"></div>
+    </div>
+  </div>
+  <!-- Indicador de pasos -->
+  <div style="display:flex;align-items:center;padding:14px 16px 0" id="conc-steps">
+    <div class="conc-dot active" id="conc-dot1">1</div>
+    <div class="conc-line" id="conc-line1"></div>
+    <div class="conc-dot pending" id="conc-dot2">2</div>
+    <div class="conc-line" id="conc-line2"></div>
+    <div class="conc-dot pending" id="conc-dot3">3</div>
+  </div>
+  <div id="conc-body" style="padding:14px 14px 100px"></div>
 </div>
 </body>
 </html>
