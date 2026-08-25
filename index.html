@@ -1006,7 +1006,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 85';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 87';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1650,21 +1650,28 @@ function rHoy(){_renderHoyContent();renderSaldoCard();}
 function renderSaldoCard(){
   const el=document.getElementById('saldo-disponible-card');
   if(!el)return;
-  const objetivo=getObjetivoMes();
+  const obj=calcObjetivoDesdeCategs();
+  const objetivo=obj.total;
   const gastado=getGastadoMes();
   const disponible=Math.max(0,objetivo-gastado);
   const excedido=gastado>objetivo&&objetivo>0;
   const pct=objetivo>0?Math.min(Math.round((gastado/objetivo)*100),100):0;
   const pctColor=pct>=90?'var(--danger)':pct>=70?'var(--s)':'var(--success)';
 
-  // Sin objetivo configurado
+  // Sin categorías con límite configuradas
   if(!objetivo){
     el.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
-      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:10px">Define tu objetivo mensual para ver cuánto te queda por gastar</div>
-      <button onclick="abrirEditarObjetivo()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:10px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer;font-weight:600">Definir objetivo del mes</button>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif;margin-bottom:6px;line-height:1.5">Para ver tu disponible mensual, define límites en tus categorías y montos en tus gastos fijos.</div>
+      <button onclick="openSettings()" style="width:100%;background:var(--p);color:var(--bg);border:none;border-radius:10px;padding:10px;font-size:13px;font-family:sans-serif;cursor:pointer;font-weight:600">Ir a Configuración →</button>
     </div>`;
     return;
   }
+
+  // Desglose de lo gastado
+  const gastosReales=gastosMes.reduce((s,g)=>s+(g.monto||0),0);
+  const cuotasMes=getTDCMovs().filter(m=>tdcEnMesActual(m.fechaVence));
+  const totalCuotas=cuotasMes.reduce((s,m)=>s+(m.montoCuota||0),0);
+  const totalFijosPend=Math.max(0,gastado-gastosReales-totalCuotas);
 
   let html=`<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -1672,39 +1679,52 @@ function renderSaldoCard(){
         <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:sans-serif;margin-bottom:3px">${excedido?'Excedido':'Disponible este mes'}</div>
         <div style="font-size:30px;font-weight:700;color:${excedido?'var(--danger)':'var(--p)'};font-family:sans-serif">${excedido?'-'+fmxn(gastado-objetivo):fmxn(disponible)}</div>
       </div>
-      <button onclick="abrirEditarObjetivo()" style="background:none;border:0.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-family:sans-serif;color:var(--muted);cursor:pointer;flex-shrink:0;margin-top:4px">Objetivo: ${fmxn(objetivo)} ✏️</button>
+      <div style="text-align:right;flex-shrink:0;margin-top:4px">
+        <div style="font-size:10px;color:var(--muted);font-family:sans-serif">Objetivo</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);font-family:sans-serif">${fmxn(objetivo)}</div>
+      </div>
     </div>
     <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
       <div style="width:${pct}%;background:${pctColor};height:8px;border-radius:6px;transition:width .4s"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:12px">
       <span>Gastado: ${fmxn(gastado)} (${pct}%)</span>
-      <span>Objetivo: ${fmxn(objetivo)}</span>
+      <span>Variables: ${fmxn(obj.variables)} · Fijos: ${fmxn(obj.fijos)}</span>
     </div>`;
 
-  // Desglose colapsable
-  const gastosReales=gastosMes.reduce((s,g)=>s+(g.monto||0),0);
-  const cuotasMes=getTDCMovs().filter(m=>tdcEnMesActual(m.fechaVence));
-  const totalCuotas=cuotasMes.reduce((s,m)=>s+(m.montoCuota||0),0);
-  const totalFijosPend=gastado-gastosReales-totalCuotas;
+  // Alerta categorías sin límite
+  if(obj.sinLimite.length>0){
+    html+=`<div style="background:rgba(183,152,88,0.1);border:1px solid rgba(183,152,88,0.3);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;gap:8px;align-items:center">
+      <span style="font-size:14px">⚠️</span>
+      <div style="font-size:11px;color:var(--text);font-family:sans-serif;line-height:1.4">
+        ${obj.sinLimite.length} categoría${obj.sinLimite.length>1?'s':''} sin límite: <strong>${obj.sinLimite.slice(0,3).join(', ')}${obj.sinLimite.length>3?'…':''}</strong>
+        — <span style="color:var(--p);cursor:pointer" onclick="openSettings()">Configurar →</span>
+      </div>
+    </div>`;
+  }
 
+  // Desglose colapsable
   html+=`<details style="margin-bottom:12px">
-    <summary style="font-size:12px;color:var(--muted);font-family:sans-serif;cursor:pointer;list-style:none;display:flex;justify-content:space-between">
-      <span>Ver desglose</span><span>▾</span>
+    <summary style="font-size:12px;color:var(--muted);font-family:sans-serif;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">
+      <span>Ver desglose del gasto</span><span>▾</span>
     </summary>
     <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid var(--border)">
         <span style="color:var(--muted)">Gastos registrados</span>
         <span style="color:var(--text)">${fmxn(gastosReales)}</span>
       </div>
-      ${totalCuotas>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
+      ${totalCuotas>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid var(--border)">
         <span style="color:var(--muted)">Cuotas TDC del mes (${cuotasMes.length})</span>
-        <span style="color:var(--acc)">${fmxn(totalCuotas)}</span>
+        <span style="color:var(--s)">${fmxn(totalCuotas)}</span>
       </div>`:''}
-      ${totalFijosPend>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0">
-        <span style="color:var(--muted)">Gastos fijos pendientes</span>
+      ${totalFijosPend>0?`<div style="display:flex;justify-content:space-between;font-size:12px;font-family:sans-serif;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted)">Fijos pendientes de registrar</span>
         <span style="color:var(--muted)">${fmxn(totalFijosPend)}</span>
       </div>`:''}
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-family:sans-serif;padding:6px 0 2px">
+        <span style="color:var(--muted)">Total comprometido</span>
+        <span style="font-weight:600;color:var(--text)">${fmxn(gastado)}</span>
+      </div>
     </div>
   </details>`;
 
@@ -1713,24 +1733,6 @@ function renderSaldoCard(){
     <button onclick="abrirDetalleComprometido()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">⏳ TDC del mes</button>
   </div></div>`;
   el.innerHTML=html;
-}
-function abrirEditarObjetivo(){
-  const actual=getObjetivoMes();
-  const html=`<div style="font-size:16px;font-weight:700;color:var(--text);font-family:sans-serif;margin-bottom:6px">Objetivo del mes</div>
-    <div style="font-size:12px;color:var(--muted);font-family:sans-serif;margin-bottom:16px;line-height:1.5">¿Cuánto quieres gastar este mes como máximo? Este número es tu límite, no tu ingreso.</div>
-    <div class="form-group"><label class="form-label">Objetivo mensual</label>
-    <input type="number" class="form-input amount-input" id="inp-objetivo-mes" placeholder="ej. 12000" inputmode="decimal" value="${actual||''}"></div>
-    <button onclick="submitObjetivoMes()" class="btn-submit">Guardar objetivo</button>`;
-  mostrarModalGenerico(html);
-  setTimeout(()=>document.getElementById('inp-objetivo-mes')?.focus(),300);
-}
-function submitObjetivoMes(){
-  const val=parseFloat(document.getElementById('inp-objetivo-mes')?.value);
-  if(!val||val<=0){showToast('Ingresa un monto válido');return;}
-  setObjetivoMes(val);
-  cerrarModalGenerico();
-  renderSaldoCard();
-  showToast('Objetivo guardado ✓');
 }
 function abrirDetalleComprometido(){
   const quien=currentUser?.name||userConfig?.nombre||'Yo';
@@ -1777,7 +1779,7 @@ function _renderHoyContent(){
       <div class="cc-top"><span class="cc-emoji">${c.e}</span><span class="cc-balance ${bc}">${bal<0?'−'+fmxn(Math.abs(bal)):fmxn(bal)}</span></div>
       <div class="cc-name">${escapeHtml(c.l)}</div>
       <div class="cc-prog"><div class="cc-prog-fill ${fc}" style="width:${pct.toFixed(1)}%"></div></div>
-      <div class="cc-amounts"><span class="cc-spent">${fmxn(spent)}</span><span>${lim>0?'/ '+fmxn(lim):'sin límite'}</span></div>
+      <div class="cc-amounts"><span class="cc-spent">${fmxn(spent)}</span><span style="${lim===0?'color:var(--s);font-weight:600':''}">${lim>0?'/ '+fmxn(lim):'⚠ sin límite'}</span></div>
     </div>`;
   }).join('')}${resto.length?`<div class="cc" style="display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="abrirTodasCategorias()"><div style="text-align:center"><div style="font-size:20px;color:var(--muted)">⋯</div><div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:2px">Ver todas</div></div></div>`:''}</div>`;
   // Gastos recientes (últimos 4)
@@ -2580,17 +2582,23 @@ function getSaldoDisponible(quien){return getSaldoReal(quien);}
 function getSaldoProyectado(quien){return getSaldoReal(quien)-getComprometidoDelMes(quien);}
 
 // ── Presupuesto mensual por cuenta ──
-function objetivoKey(){return 'pb_objetivo_mes_'+currentAcct;}
-function getObjetivoMes(){
-  const key=objetivoKey();
-  const guardado=parseFloat(localStorage.getItem(key));
-  if(!isNaN(guardado)&&guardado>0)return guardado;
-  // Fallback: ingreso configurado en perfil
-  const ingreso=esHogar(currentAcct)?(gls('casa_config')?.ingreso||0):(userConfig?.ingreso||0);
-  return ingreso||0;
+// ── Objetivo del mes auto-calculado desde límites de categorías + fijos ──
+function calcObjetivoDesdeCategs(){
+  const cats=userConfig?.categorias||[];
+  const limites=budgets||{};
+  let totalVariables=0;
+  const sinLimite=[];
+  cats.filter(c=>c.active!==false).forEach(c=>{
+    const lim=parseFloat(limites[c.id]||c.b||c.limite||0);
+    if(lim>0) totalVariables+=lim;
+    else sinLimite.push(c.l||c.id);
+  });
+  const fijos=getFijosDelMes();
+  const totalFijos=fijos.filter(f=>fijoAplicaEsteMes(f)).reduce((s,f)=>s+(parseFloat(f.monto)||0),0);
+  return{variables:totalVariables,fijos:totalFijos,total:totalVariables+totalFijos,sinLimite};
 }
-function setObjetivoMes(valor){
-  localStorage.setItem(objetivoKey(),String(Math.round(valor*100)/100));
+function getObjetivoMes(){
+  return calcObjetivoDesdeCategs().total;
 }
 function getGastadoMes(){
   // Gastos reales del mes (en memoria)
@@ -3586,6 +3594,21 @@ function renderFormInversionCuestionario(tipo,inv){
 }
 
 // ── Helpers de interacción del formulario ──
+function invSelChip(el){
+  // Chip genérico — deselecciona todos los del mismo grid y selecciona el tocado
+  const grid=el.closest('[id]')||el.parentElement;
+  grid.querySelectorAll('.inv-chip').forEach(c=>{
+    c.style.background='var(--card)';c.style.color='var(--text)';
+    c.style.borderColor='var(--border)';
+  });
+  el.style.background='var(--s)';el.style.color='var(--bg)';
+  el.style.borderColor='var(--s)';
+  // Si tiene data-input, actualizar el hidden input
+  if(el.dataset.input){
+    const inp=document.getElementById(el.dataset.input);
+    if(inp)inp.value=el.dataset.val;
+  }
+}
 function invSelChipBase(el,hiddenId){
   document.querySelectorAll('.inv-chip-base').forEach(c=>{c.style.background='var(--card)';c.style.color='var(--text)';});
   el.style.background='var(--s)';el.style.color='var(--bg)';
