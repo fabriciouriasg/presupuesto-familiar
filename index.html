@@ -1006,7 +1006,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 87';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 88';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1689,7 +1689,7 @@ function renderSaldoCard(){
     </div>
     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:sans-serif;margin-bottom:12px">
       <span>Gastado: ${fmxn(gastado)} (${pct}%)</span>
-      <span>Variables: ${fmxn(obj.variables)} · Fijos: ${fmxn(obj.fijos)}</span>
+      <span>Suma de límites por categoría</span>
     </div>`;
 
   // Alerta categorías sin límite
@@ -2584,18 +2584,19 @@ function getSaldoProyectado(quien){return getSaldoReal(quien)-getComprometidoDel
 // ── Presupuesto mensual por cuenta ──
 // ── Objetivo del mes auto-calculado desde límites de categorías + fijos ──
 function calcObjetivoDesdeCategs(){
+  // El objetivo es la suma de límites de categorías activas.
+  // Los gastos fijos ya tienen categoría asignada → ya están en los límites.
+  // No se suman por separado para evitar doble conteo.
   const cats=userConfig?.categorias||[];
   const limites=budgets||{};
-  let totalVariables=0;
+  let total=0;
   const sinLimite=[];
   cats.filter(c=>c.active!==false).forEach(c=>{
     const lim=parseFloat(limites[c.id]||c.b||c.limite||0);
-    if(lim>0) totalVariables+=lim;
+    if(lim>0) total+=lim;
     else sinLimite.push(c.l||c.id);
   });
-  const fijos=getFijosDelMes();
-  const totalFijos=fijos.filter(f=>fijoAplicaEsteMes(f)).reduce((s,f)=>s+(parseFloat(f.monto)||0),0);
-  return{variables:totalVariables,fijos:totalFijos,total:totalVariables+totalFijos,sinLimite};
+  return{variables:total,fijos:0,total,sinLimite};
 }
 function getObjetivoMes(){
   return calcObjetivoDesdeCategs().total;
