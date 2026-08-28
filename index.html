@@ -1068,7 +1068,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 100';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 101';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1507,8 +1507,12 @@ function renderOnboarding(){
 function renderOb1(){return `<div class="ob-title">Tu perfil</div><div class="avatar-upload"><div class="avatar-circle" onclick="document.getElementById('av-input').click()">${obData.photo?`<img src="${obData.photo}" style="width:100%;height:100%;object-fit:cover">`:`<div class="avatar-placeholder"><span>📷</span>Tu foto</div>`}</div><input type="file" id="av-input" accept="image/*" style="display:none" onchange="handleAvatar(this)"><div class="avatar-hint">Toca para subir desde galería</div></div><input class="ob-name-input" id="ob-name" placeholder="¿Cómo te llamas?" value="${obData.nombre||''}"><div class="ob-name-hint">Este nombre aparecerá en tu cuenta</div><div style="background:rgba(183,152,88,0.1);border:1px solid rgba(183,152,88,0.25);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:12px;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">🗂️ Al completar el registro se creará automáticamente tu Google Sheet personal en tu Drive.</div><button class="ob-btn" onclick="obNext1()">Continuar →</button>`;}
 function handleAvatar(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{obData.photo=e.target.result;renderOnboarding();};reader.readAsDataURL(file);}
 function obNext1(){const n=document.getElementById('ob-name').value.trim();if(!n){showToast('Ingresa tu nombre');return;}obData.nombre=n;obStep=2;renderOnboarding();}
-function renderOb2(){return `<div class="ob-title">Tu ingreso mensual</div><input type="number" class="ob-income-display" id="ob-income" placeholder="$0" inputmode="decimal" value="${obData.ingreso||''}"><div class="ob-income-hint">¿Cuánto recibes al mes?</div><button class="ob-btn" onclick="obNext2()">Continuar →</button>`;}
-function obNext2(){const v=parseFloat(document.getElementById('ob-income').value);if(!v||v<=0){showToast('Ingresa un monto válido');return;}obData.ingreso=v;obStep=3;renderOnboarding();}
+function renderOb2(){return `<div class="ob-title">Gastos fijos</div>
+<div style="background:rgba(183,152,88,0.1);border:1px solid rgba(183,152,88,0.25);border-radius:12px;padding:12px 14px;margin-bottom:20px;font-size:13px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);line-height:1.6">
+  En el siguiente paso agregarás tus gastos fijos. El presupuesto disponible se calcula sumando los límites de cada categoría — puedes ajustarlos en cualquier momento desde Configuración.
+</div>
+<button class="ob-btn" onclick="obNext2()">Continuar →</button>`;}
+function obNext2(){obData.ingreso=0;obStep=3;renderOnboarding();}
 function renderOb3(){
   const totalFijos=obData.fijos.reduce((s,f)=>s+(f.monto||0),0);const disp=obData.ingreso-totalFijos;
   return `<div class="ob-title">Gastos fijos</div><div class="total-card"><div class="tc-row"><span class="tc-label">Ingreso</span><span class="tc-val">${fmxn(obData.ingreso)}</span></div><div class="tc-row"><span class="tc-label">Fijos</span><span class="tc-val neg">− ${fmxn(totalFijos)}</span></div><div class="tc-div"></div><div class="tc-row"><span class="tc-label">Disponible variable</span><span class="tc-val ${disp>=0?'ok':'neg'}">${fmxn(disp)}</span></div></div><div class="chip-grid">${obData.fijos.map((f,i)=>`<div class="chip-big active" onclick="openFijoModal(${i})"><span class="ce">${f.e}</span><span class="cn">${escapeHtml(f.l)}</span><span class="ca">${fmxn(f.monto)}</span><span class="chip-del" onclick="event.stopPropagation();obData.fijos.splice(${i},1);renderOnboarding()">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="abrirCatalogoOnboarding()"><span class="ce">＋</span><span class="cn">Explorar catálogo</span></div></div><button class="ob-btn" onclick="obStep=4;renderOnboarding()">Continuar →</button>`;
@@ -2076,8 +2080,16 @@ function _renderHistorialContent(){
     const personas = Object.entries(porPersona).filter(([q])=>q!=='Casa'&&q!=='Sin especificar');
     if(personas.length){
       const totalGeneral = personas.reduce((s,[,d])=>s+d.total,0);
-      reembolsoHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted);margin-bottom:4px">💸 Gastado por persona este mes</div>
+      const _resumenPersonas=personas.sort((a,b)=>b[1].total-a[1].total).map(function(x){return x[0].split(' ')[0]+' '+fmxn(x[1].total);}).join(' · ');
+      reembolsoHtml = `<details style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden">
+        <summary style="list-style:none;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer">
+          <div>
+            <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">💸 Por persona</div>
+            <div style="font-size:12px;color:var(--text);font-weight:600;margin-top:2px">${_resumenPersonas}</div>
+          </div>
+          <span style="font-size:14px;color:var(--muted);flex-shrink:0">▾</span>
+        </summary>
+        <div style="padding:0 14px 12px">
         <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:10px">Toca un nombre para ver en qué gastó</div>
         ${personas.sort((a,b)=>b[1].total-a[1].total).map(([nombre,d],idx)=>{
           const pid = 'per-'+idx;
@@ -2114,8 +2126,8 @@ function _renderHistorialContent(){
             </div>
           </div>`;
         }).join('')}
-        <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:8px;line-height:1.4">💡 Esto es solo referencia de reembolso — no afecta los totales del presupuesto</div>
-      </div>`;
+        <div style="font-size:10px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-top:8px;line-height:1.4">💡 Solo referencia — no afecta el presupuesto</div>
+        </div></details>`;
     }
   }
 
@@ -5487,9 +5499,11 @@ function _setSec_fijos(){
 function _setSec_categorias(){
   const cfg=_setCfg();const isCasa=esHogar(currentAcct);const tema=cfg.tema||'mayne';
   const nombre=cfg.nombre||currentUser?.name||'';const photo=cfg.photo||currentUser?.photo||'';
+  // Mostrar TODAS: configuradas (activas e inactivas) + botón de nueva
+  const todasLasCats=isCasa?(gls('casa_config')?.categorias||DEFAULT_CATS):(cfg.categorias&&cfg.categorias.length?cfg.categorias:DEFAULT_CATS.map(c=>({...c,active:true})));
   return `    <div class="settings-section"><div class="settings-title" style="display:flex;align-items:center;justify-content:space-between">Categorías<span onclick="mostrarAyudaTab('categorias')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 7px;border-radius:10px;border:0.5px solid var(--border);font-weight:400;margin-left:8px">?</span></div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-        ${(cfg.categorias||[]).map((c,i)=>`
+        ${todasLasCats.map((c,i)=>`
         <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;opacity:${c.active===false?'0.5':'1'}">
           <span style="font-size:22px;flex-shrink:0">${c.e}</span>
           <div style="flex:1;min-width:0">
@@ -8031,6 +8045,20 @@ async function confirmarPagoFijo(idx){
 // ════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════
+// ── Cierre universal al tocar afuera de cualquier modal ──
+const _MODAL_EXCLUIDOS=new Set(['drawer-overlay','overlay-inversiones','overlay-inv-form','overlay-conciliacion','proj-overlay','camara-overlay','inline-drawer']);
+document.addEventListener('click',function(ev){
+  const t=ev.target;
+  if(_MODAL_EXCLUIDOS.has(t.id))return;
+  if(t.classList&&t.classList.contains('modal-overlay')&&t.classList.contains('open')){
+    t.classList.remove('open');return;
+  }
+  if(t.id==='modal-generico'){cerrarModalGenerico();return;}
+  if(t.id==='modal-todas-cats'){cerrarTodasCategorias();return;}
+  if(t.id==='modal-partidas'){cerrarPartidas();return;}
+  if(t.id==='modal-recategorizar'){t.style.display='none';return;}
+},{capture:false,passive:false});
+
 setOnline(navigator.onLine);
 applyTheme('mayne');
 // Si hay un escaneo pendiente al arrancar, la app se reinició a medias
