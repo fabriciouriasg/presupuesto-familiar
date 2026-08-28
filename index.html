@@ -1068,7 +1068,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 99';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 100';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -5097,7 +5097,26 @@ function _renderMetasContent(){
 }
 function abrirNuevaMeta(){
   document.getElementById('modal-meta').classList.add('open');
-  renderModalMeta();
+  // Mostrar selector de tipo: Evento / Reto / Ahorro
+  const body=document.getElementById('modal-meta-body');
+  if(!body)return;
+  body.innerHTML=`
+    <div style="font-size:13px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:14px;line-height:1.5">¿Qué tipo de meta quieres crear?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div onclick="openMetaModal('evento')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;cursor:pointer">
+        <span style="font-size:20px">🎯</span>
+        <div><div style="font-size:13px;font-weight:600;color:var(--text)">Evento</div><div style="font-size:11px;color:var(--muted)">Viajes, compras grandes, fechas especiales</div></div>
+      </div>
+      <div onclick="openMetaModal('reto')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;cursor:pointer">
+        <span style="font-size:20px">💪</span>
+        <div><div style="font-size:13px;font-weight:600;color:var(--text)">Reto</div><div style="font-size:11px;color:var(--muted)">Controlar el gasto en una categoría este mes</div></div>
+      </div>
+      <div onclick="openMetaModal('ahorro')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;cursor:pointer">
+        <span style="font-size:20px">💰</span>
+        <div><div style="font-size:13px;font-weight:600;color:var(--text)">Ahorro libre</div><div style="font-size:11px;color:var(--muted)">Meta mensual de ahorro recurrente</div></div>
+      </div>
+    </div>`;
+  _backPush(()=>document.getElementById('modal-meta').classList.remove('open'));
 }
 
 function renderMetasList(metas){const totals={};gastosMes.forEach(g=>{totals[g.categoria]=(totals[g.categoria]||0)+g.monto;});return metas.map(m=>{if(m.tipo==='evento')return renderMetaEvento(m);if(m.tipo==='reto')return renderMetaReto(m,totals);if(m.tipo==='ahorro')return renderMetaAhorro(m);return '';}).join('');}
@@ -5382,7 +5401,7 @@ function _setSec_perfil(){
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
         <div onclick="document.getElementById('settings-avatar-input').click()" style="width:64px;height:64px;border-radius:50%;border:2px dashed var(--s);background:rgba(183,152,88,0.08);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-size:28px">${nombre?nombre[0].toUpperCase():'👤'}</span>`}</div>
         <input type="file" id="settings-avatar-input" accept="image/*" style="display:none" onchange="updateAvatar(this)">
-        <div style="flex:1"><input class="form-input" id="settings-nombre" value="${nombre}" placeholder="Tu nombre" style="margin-bottom:8px;font-size:15px"><input type="number" class="form-input" id="settings-ingreso" value="${cfg.ingreso||''}" placeholder="Ingreso mensual" inputmode="decimal" style="font-size:15px"></div>
+        <div style="flex:1"><input class="form-input" id="settings-nombre" value="${nombre}" placeholder="Tu nombre" style="font-size:15px"></div>
       </div>
       <button class="btn-submit" onclick="savePerfilSettings()" style="margin-top:0">Guardar perfil</button>
     </div>`;
@@ -5537,19 +5556,19 @@ function _setMenu(){
   const esPersonal=!currentUser?.isAdmin&&!isCasa;
   return [
     {g:'Mi presupuesto',items:[
-      {id:'categorias',e:'🏷️',t:'Categorías y límites',s:'Cuánto puedes gastar en cada rubro',secs:['categorias','limites'],ok:!isCasa},
-      {id:'fijos',     e:'🔁',t:'Gastos fijos',        s:'Pagos que se repiten cada mes',      secs:['fijos'],            ok:!isCasa},
+      {id:'categorias',e:'🏷️',t:'Categorías y límites',s:'Cuánto puedes gastar en cada rubro',secs:['categorias','limites'],ok:true},
+      {id:'fijos',     e:'🔁',t:'Gastos fijos',        s:'Pagos que se repiten cada mes',      secs:['fijos'],            ok:true},
       {id:'pagos',     e:'💳',t:'Cuentas, tarjetas e ingresos',s:'De dónde sale y entra tu dinero',secs:['pagos'],        ok:true},
     ]},
     {g:'Mi cuenta',items:[
-      {id:'perfil',    e:'👤',t:'Perfil e ingreso',    s:'Tu nombre, foto e ingreso mensual',  secs:['perfil'],           ok:true, oculto:true},
-      {id:'hogar',     e:'👥',t:'Hogar y compartir',   s:'Invita y administra a quién ve tus gastos',secs:['hogar','casa','compartir'],ok:(isCasa&&!!miHogar)||esPersonal},
+      {id:'perfil',    e:'👤',t:'Perfil',              s:'Tu nombre y foto de cuenta',  secs:['perfil'],           ok:true, oculto:true},
+      {id:'hogar',     e:'👥',t:'Hogar y compartir',   s:'Invita y administra a quién ve tus gastos',secs:['hogar','casa','compartir'],ok:true},
     ]},
     {g:'Apariencia',items:[
       {id:'apariencia',e:'🎨',t:'Tema y modo nocturno',s:'Colores, imagen de fondo y lectura nocturna',secs:['apariencia'],ok:true},
     ]},
     {g:'Datos y avanzado',items:[
-      {id:'datos',     e:'💾',t:'Datos y respaldo',    s:'Exportar, reconectar Sheet, resetear',secs:['datos'],           ok:!isCasa},
+      {id:'datos',     e:'💾',t:'Datos y respaldo',    s:'Exportar, reconectar Sheet, resetear',secs:['datos'],           ok:true},
       {id:'dev',       e:'🐞',t:'Desarrollo',          s:'Consola de diagnóstico',              secs:['dev'],             ok:true},
     ]},
   ];
@@ -5666,7 +5685,20 @@ function saveCasaConfig(){
   if(activeTab==='historial')rHistorial();
 }
 function updateAvatar(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{if(userConfig){userConfig.photo=e.target.result;sls('config_'+currentUser.email,userConfig);}renderSettings();renderHome();};reader.readAsDataURL(file);}
-function savePerfilSettings(){const nombre=document.getElementById('settings-nombre').value.trim();const ingreso=parseFloat(document.getElementById('settings-ingreso').value);if(!nombre){showToast('Ingresa un nombre');return;}if(!ingreso||ingreso<=0){showToast('Ingresa un ingreso válido');return;}if(userConfig){userConfig.nombre=nombre;userConfig.ingreso=ingreso;sls('config_'+currentUser.email,userConfig);document.getElementById('header-name').textContent=nombre;if(isOnline){if(currentUser.isAdmin)postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email}).catch(()=>{});else if(window.gAccessToken)saveConfigToSheet(currentUser.email,userConfig).catch(()=>{});}}showToast('Perfil actualizado ✓');}
+function savePerfilSettings(){
+  const nombre=document.getElementById('settings-nombre').value.trim();
+  if(!nombre){showToast('Ingresa un nombre');return;}
+  if(userConfig){
+    userConfig.nombre=nombre;
+    sls('config_'+currentUser.email,userConfig);
+    document.getElementById('header-name').textContent=nombre;
+    if(isOnline){
+      if(currentUser.isAdmin)postAPI({action:'saveConfig',token:TOKEN,...userConfig,userId:currentUser.email}).catch(()=>{});
+      else if(window.gAccessToken)saveConfigToSheet(currentUser.email,userConfig).catch(()=>{});
+    }
+  }
+  showToast('Perfil actualizado ✓');
+}
 function exportCSV(){abrirExportHistorial();}
 
 // ════ FIX 1: toggleCat — sin restricción, siempre editable ════
@@ -5817,11 +5849,19 @@ function _backPush(closerFn){
   _backStack.push(closerFn);
 }
 function _backPop(){
-  _backStack.pop();
+  // Llamado por cierres programáticos (el usuario toca ✕ en vez de Atrás).
+  // Si popstate ya sacó la entrada, la pila está vacía y no hay nada que hacer.
+  // Si no: sacamos la entrada SIN ejecutarla (el close ya lo hizo el caller).
+  if(_backStack.length) _backStack.pop();
 }
 window.addEventListener('popstate',function(){
   if(_backStack.length){
-    const closer=_backStack.pop();
+    // El listener saca la entrada Y la ejecuta.
+    // Los closers ya NO llaman a _backPop() — eso lo hace el listener.
+    // (Los closers individuales siguen llamando _backPop para el caso de cierre
+    // programático sin popstate; ver nota en _backPop.)
+    const closer=_backStack[_backStack.length-1];
+    _backStack.pop();
     try{closer();}catch(e){}
   }
 });
