@@ -294,6 +294,20 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-fab{position:static;height:0}
 .fab-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(64px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:var(--p);border:none;color:var(--bg);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;box-shadow:0 2px 8px rgba(84,41,22,0.25)}
 
+/* ── Modo nocturno ── */
+body.dark-mode{color-scheme:dark}
+body.dark-mode .form-input{background:var(--card);border-color:var(--border);color:var(--text)}
+body.dark-mode .modal-overlay>div{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode .historial-mes-card{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode .chip-big{background:var(--card)!important;border-color:var(--border)!important;color:var(--text)!important}
+body.dark-mode .cat-chip-m{background:var(--card)!important;border-color:var(--border)!important;color:var(--muted)!important}
+body.dark-mode .pago-chip{background:var(--card)!important;border-color:var(--border)!important;color:var(--muted)!important}
+body.dark-mode .settings-section{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode .account-btn{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode .cc-card{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode #menu-mas{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode .busq-result-item{background:var(--card)!important;border-color:var(--border)!important}
+body.dark-mode select,body.dark-mode input[type=date],body.dark-mode input[type=month]{background:var(--card)!important;color:var(--text)!important;border-color:var(--border)!important}
 /* ── Conciliación ── */
 .conc-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;font-family:sans-serif}
 .conc-dot.active{background:var(--p);color:var(--bg)}
@@ -472,6 +486,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
       <div class="sync-pill sync-online" id="sync-pill" style="display:none">EN LÍNEA</div>
       <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#7ef5a8;flex-shrink:0;display:none"></div>
       <button id="btn-refresh" onclick="refreshData()" title="Actualizar" style="background:none;border:none;font-size:18px;color:rgba(254,250,240,0.7);cursor:pointer;padding:0;flex-shrink:0">↻</button>
+      <button class="header-settings-btn" id="btn-dark-mode" onclick="toggleDarkMode()" title="Modo nocturno" style="font-size:18px">🌙</button>
       <button class="header-settings-btn" onclick="openSettings()" title="Ajustes">⚙️</button>
       <button class="header-settings-btn" id="btn-mas" onclick="PROJ_toggleMenuMas(event)" title="Más acciones" style="position:relative">⋯</button>
       <div id="menu-mas" style="display:none;position:fixed;background:var(--bg);border:0.5px solid var(--border);border-radius:12px;box-shadow:0 4px 20px rgba(42,24,16,0.15);padding:4px;z-index:500;min-width:200px">
@@ -624,7 +639,7 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 <div class="modal-overlay" id="modal-gasto">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-gasto-title">Nuevo gasto</div>
+    <div class="modal-title" id="modal-gasto-title" style="display:flex;align-items:center;justify-content:space-between">Nuevo gasto<span onclick="mostrarAyudaTab('gasto')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 8px;border-radius:10px;border:0.5px solid var(--border);font-weight:400">?</span></div>
     <button id="modal-scan-btn" onclick="abrirEscaner('modal')" style="width:100%;background:rgba(183,152,88,0.1);border:1.5px dashed rgba(183,152,88,0.45);border-radius:12px;padding:13px;font-size:13px;font-family:'Helvetica Neue',sans-serif;color:var(--p);cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600">📷 Escanear ticket y detectar categoría</button>
     <div id="modal-ticket-estado" style="display:none;border-radius:12px;padding:12px;margin-bottom:12px;font-size:13px;font-family:'Helvetica Neue',sans-serif"></div>
     <div class="form-group"><label class="form-label">Monto</label><input type="number" class="form-input amount-input" id="inp-amount" placeholder="0.00" inputmode="decimal"></div>
@@ -1025,7 +1040,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 93';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 95';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1057,6 +1072,14 @@ const THEMES = [
   {id:'clearsky',name:'Clear Sky',swatches:['#5b9bd5','#90c4f0','#ffd166','#f0f8ff','#ff6b6b'],p:'#5b9bd5',s:'#90c4f0',acc:'#ffd166',bg:'#f0f8ff'},
   {id:'custom',name:'Mi tema',swatches:['#542916','#b79858','#a13a1e','#88b8ce','#fefaf0'],p:'#542916',s:'#b79858',acc:'#a13a1e',bg:'#fefaf0'}
 ];
+// Paleta nocturna — superpuesta sobre el tema activo vía CSS vars adicionales
+const DARK_PALETTE={
+  bg:'#1a1008',card:'#241608',text:'#fefaf0',muted:'#a89070',
+  border:'#3a2518',borderStrong:'#4a3020',
+  s:'#b79858', // dorado se mantiene
+  acc:'#e8a87a', // rojo → naranja cálido (menos agresivo en oscuro)
+  success:'#5fc98a',danger:'#e07060'
+};
 
 // ════════════════════════════════════════════════════════════
 // STATE
@@ -1178,7 +1201,61 @@ function applyTheme(id){
   else t=THEMES.find(x=>x.id===id)||THEMES[0];
   const r=document.documentElement.style;
   r.setProperty('--p',t.p);r.setProperty('--p2',t.p+'cc');r.setProperty('--s',t.s);r.setProperty('--acc',t.acc);r.setProperty('--bg',t.bg);
+  // Reaplicar modo nocturno si está activo
+  if(_darkModeActivo) _aplicarPaletaNocturna();
+  else _removerPaletaNocturna();
   applyBgImage();
+}
+let _darkModeActivo=false;
+function toggleDarkMode(){
+  _darkModeActivo=!_darkModeActivo;
+  // Persistir preferencia
+  localStorage.setItem('pb_dark_mode',_darkModeActivo?'1':'0');
+  _actualizarBtnDark();
+  if(_darkModeActivo) _aplicarPaletaNocturna();
+  else _removerPaletaNocturna();
+}
+function _actualizarBtnDark(){
+  const btn=document.getElementById('btn-dark-mode');
+  if(!btn)return;
+  if(_darkModeActivo){btn.textContent='☀️';btn.style.background='rgba(183,152,88,0.3)';}
+  else{btn.textContent='🌙';btn.style.background='';}
+}
+function _aplicarPaletaNocturna(){
+  const r=document.documentElement.style;
+  r.setProperty('--bg',DARK_PALETTE.bg);
+  r.setProperty('--card',DARK_PALETTE.card);
+  r.setProperty('--text',DARK_PALETTE.text);
+  r.setProperty('--muted',DARK_PALETTE.muted);
+  r.setProperty('--border',DARK_PALETTE.border);
+  r.setProperty('--border-strong',DARK_PALETTE.borderStrong||DARK_PALETTE.border);
+  r.setProperty('--s',DARK_PALETTE.s);
+  r.setProperty('--acc',DARK_PALETTE.acc);
+  r.setProperty('--success',DARK_PALETTE.success);
+  r.setProperty('--danger',DARK_PALETTE.danger);
+  r.setProperty('--miel',DARK_PALETTE.s);
+  document.body.classList.add('dark-mode');
+}
+function _removerPaletaNocturna(){
+  const r=document.documentElement.style;
+  // Restaurar vars que no maneja applyTheme
+  r.removeProperty('--card');
+  r.removeProperty('--text');
+  r.removeProperty('--muted');
+  r.removeProperty('--border');
+  r.removeProperty('--border-strong');
+  r.removeProperty('--success');
+  r.removeProperty('--danger');
+  r.removeProperty('--miel');
+  document.body.classList.remove('dark-mode');
+  // Reaplicar tema actual para restaurar --s y --acc
+  const tema=userConfig?.tema||'mayne';
+  applyTheme(tema);
+}
+function initDarkMode(){
+  _darkModeActivo=localStorage.getItem('pb_dark_mode')==='1';
+  _actualizarBtnDark();
+  if(_darkModeActivo)_aplicarPaletaNocturna();
 }
 function applyBgImage(){
   const email=currentUser?.email||'default';
@@ -1324,7 +1401,7 @@ async function afterLogin(){
   }
   // 1. Checar localStorage primero (más rápido)
   const saved=gls('config_'+currentUser.email);
-  if(saved){userConfig=saved;applyTheme(userConfig.tema||'mayne');if(!currentAcct){if(activeTab==='hoy'||document.getElementById('screen-home')?.classList.contains('active')){renderAll();}else{showHome();}}return;}
+  if(saved){userConfig=saved;applyTheme(userConfig.tema||'mayne');initDarkMode();if(!currentAcct){if(activeTab==='hoy'||document.getElementById('screen-home')?.classList.contains('active')){renderAll();}else{showHome();}}return;}
   // 2. Si no hay local, intentar recuperar del Google Sheet personal
   if(!currentUser.isAdmin&&isOnline&&window.gAccessToken){
     try{
@@ -1804,21 +1881,74 @@ function _renderHoyContent(){
   // Gastos recientes (últimos 4)
   const recEl=document.getElementById('gastos-recientes');
   if(!recEl)return;
-  const sorted=[...gastosMes].filter(g=>!g._pending).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);}).slice(0,4);
-  if(!sorted.length){recEl.innerHTML=`<div style="text-align:center;padding:14px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos este mes aún</div>`;return;}
-  recEl.innerHTML=sorted.map(e=>{
-    const c=getCat(e.categoria);
-    const eData={rowIndex:e.rowIndex,fecha:e.fecha,nota:e.nota||'',monto:e.monto,pago:e.pago||'',categoria:e.categoria,quien:e.quien||''};
-    const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(eData))));
-    return `<div class="expense-item" style="gap:8px;margin-bottom:7px">
-      <div class="ei-icon">${c.e}</div>
-      <div class="ei-info"><div class="ei-desc">${escapeHtml(e.nota||e.categoria)}</div><div class="ei-meta">${escapeHtml(c.l)} · ${e.fecha}${e.origen==='ticket'?' 📷':e.origen==='ticket_editado'?' 📷✏️':''}</div></div>
-      <div class="ei-right"><div class="ei-amount">${fmxn(e.monto)}</div>${e.pago?`<div class="ei-pago">${escapeHtml(e.pago)}</div>`:''}</div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-        <button onclick="abrirEditGastoHistorial('${encoded}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:7px;width:26px;height:26px;cursor:pointer;font-size:12px">✏️</button>
-        <button onclick="confirmarEliminarGasto(${e.rowIndex},'${escapeHtml(e.nota||e.categoria).replace(/'/g,'')}')" style="background:rgba(161,58,30,0.08);border:none;border-radius:7px;width:26px;height:26px;cursor:pointer;font-size:12px">🗑️</button>
-      </div>
-    </div>`;
+  const todosRec=[...gastosMes].filter(g=>!g._pending).sort((a,b)=>{const fd=b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0;return fd!==0?fd:(b.rowIndex||0)-(a.rowIndex||0);});
+  if(!todosRec.length){recEl.innerHTML=`<div style="text-align:center;padding:14px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;font-size:12px">Sin gastos este mes aún</div>`;return;}
+  // Agrupar por grupoId (tickets con múltiples partidas) → una sola entrada colapsable
+  const _grupos={};const _sueltos=[];
+  todosRec.forEach(e=>{
+    if(e.grupoId){
+      if(!_grupos[e.grupoId]){_grupos[e.grupoId]={comercio:e.comercio||'Ticket',fecha:e.fecha,lineas:[],total:0,cats:{}};}
+      _grupos[e.grupoId].lineas.push(e);
+      _grupos[e.grupoId].total+=e.monto;
+      const catL=getCat(e.categoria).l;
+      if(!_grupos[e.grupoId].cats[e.categoria])_grupos[e.grupoId].cats[e.categoria]={l:catL,e:getCat(e.categoria).e,total:0};
+      _grupos[e.grupoId].cats[e.categoria].total+=e.monto;
+    }else{_sueltos.push(e);}
+  });
+  // Construir lista unificada: grupos primero (un ítem por grupo), luego sueltos
+  const _items=[];
+  Object.values(_grupos).forEach(gr=>_items.push({_tipo:'grupo',data:gr,fecha:gr.fecha}));
+  _sueltos.forEach(e=>_items.push({_tipo:'suelto',data:e,fecha:e.fecha}));
+  // Re-ordenar por fecha y tomar las primeras 5 (grupos cuentan como 1)
+  _items.sort((a,b)=>b.fecha>a.fecha?1:b.fecha<a.fecha?-1:0);
+  const sorted=_items.slice(0,10); // 10 ítems visuales (tickets agrupados = 1)
+  recEl.innerHTML=sorted.map(item=>{
+    if(item._tipo==='grupo'){
+      const gr=item.data;
+      const catResumen=Object.values(gr.cats).map(cat=>`${cat.e} ${fmxn(cat.total)}`).join(' · ');
+      const expandId='rec_grp_'+gr.lineas[0]?.grupoId;
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:7px;overflow:hidden">
+        <div onclick="document.getElementById('${expandId}').style.display=document.getElementById('${expandId}').style.display==='none'?'block':'none'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(183,152,88,0.1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📷</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(gr.comercio)}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:sans-serif">${catResumen} · ${gr.lineas.length} art.</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:14px;font-weight:700;color:var(--acc);font-family:sans-serif">${fmxn(gr.total)}</div>
+            <div style="font-size:10px;color:var(--muted)">▾</div>
+          </div>
+        </div>
+        <div id="${expandId}" style="display:none;border-top:0.5px solid var(--border)">
+          ${gr.lineas.map(l=>{
+            const lc=getCat(l.categoria);
+            const lData={rowIndex:l.rowIndex,fecha:l.fecha,nota:l.nota||'',monto:l.monto,pago:l.pago||'',categoria:l.categoria,quien:l.quien||''};
+            const lEnc=l.rowIndex?btoa(unescape(encodeURIComponent(JSON.stringify(lData)))):'';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:0.5px solid var(--border)">
+              <span style="font-size:14px">${lc.e}</span>
+              <div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.nota||lc.l)}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:sans-serif">${escapeHtml(lc.l)}</div></div>
+              <div style="font-size:12px;font-weight:600;color:var(--acc);font-family:sans-serif">${fmxn(l.monto)}</div>
+              ${lEnc?`<button onclick="abrirEditGastoHistorial('${lEnc}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;flex-shrink:0">✏️</button>`:''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }else{
+      const e=item.data;
+      const ec=getCat(e.categoria);
+      const eData={rowIndex:e.rowIndex,fecha:e.fecha,nota:e.nota||'',monto:e.monto,pago:e.pago||'',categoria:e.categoria,quien:e.quien||''};
+      const encoded=e.rowIndex?btoa(unescape(encodeURIComponent(JSON.stringify(eData)))):'';
+      return `<div class="expense-item" style="gap:8px;margin-bottom:7px">
+        <div class="ei-icon">${ec.e}</div>
+        <div class="ei-info"><div class="ei-desc">${escapeHtml(e.nota||e.categoria)}</div><div class="ei-meta">${escapeHtml(ec.l)} · ${e.fecha}${e.origen==='ticket'?' 📷':''}</div></div>
+        <div class="ei-right"><div class="ei-amount">${fmxn(e.monto)}</div>${e.pago?`<div class="ei-pago">${escapeHtml(e.pago)}</div>`:''}</div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+          ${encoded?`<button onclick="abrirEditGastoHistorial('${encoded}')" style="background:rgba(183,152,88,0.12);border:none;border-radius:7px;width:26px;height:26px;cursor:pointer;font-size:12px">✏️</button>`:''}
+          ${e.rowIndex?`<button onclick="confirmarEliminarGasto(${e.rowIndex},'${escapeHtml(e.nota||e.categoria).replace(/'/g,'')}')" style="background:rgba(161,58,30,0.08);border:none;border-radius:7px;width:26px;height:26px;cursor:pointer;font-size:12px">🗑️</button>`:''}
+        </div>
+      </div>`;
+    }
   }).join('');
   // Badge pendientes en tab Historial
   const q=gq(currentAcct);
@@ -3116,21 +3246,64 @@ function rMetas(){_renderMetasContent();}
 // ══════════════════════════════════════════════════════════════════
 const _AYUDA_TABS={
   gastos:{
-    titulo:'Gastos',
-    desc:'Todos los gastos registrados del mes, agrupados por categoría. Aquí aparecen los gastos manuales, los escaneados con ticket y los importados desde el estado de cuenta.',
-    items:['Toca una categoría para ver el detalle','El lápiz ✏️ permite editar cualquier gasto','Los gastos de tarjeta de crédito aparecen cuando se paga la cuota']
+    titulo:'Gastos del mes',
+    desc:'Todos los gastos registrados del mes, agrupados por categoría. Aquí aparecen los gastos manuales, los escaneados con ticket y los importados desde un estado de cuenta.',
+    items:['Toca una categoría para ver y editar cada gasto','Los tickets con múltiples artículos se muestran como una sola línea expandible','El lápiz ✏️ edita un gasto; el bote 🗑️ lo elimina']
   },
   fijos:{
     titulo:'Gastos Fijos',
-    desc:'Gastos recurrentes que se repiten cada mes: Infonavit, suscripciones, servicios, etc. Se configuran una vez y aparecen aquí como recordatorio de pago.',
-    items:['Marca cada fijo como pagado cuando lo liquides','Puedes pagar con débito o con tarjeta de crédito','Los fijos pagados con TDC generan una cuota en la pestaña Tarjetas']
+    desc:'Gastos recurrentes configurados una vez: Infonavit, suscripciones, servicios. Aparecen cada mes como recordatorio de pago pendiente.',
+    items:['Toca un fijo para registrar el pago — elige débito o TDC','Los fijos pagados con TDC generan automáticamente una cuota en Tarjetas','El pago queda registrado en el mes actual aunque el cargo a la TDC llegue después']
   },
   tarjetas:{
     titulo:'Tarjetas de Crédito',
-    desc:'Seguimiento de compras a meses y cuotas pendientes por tarjeta. Cada compra a meses genera cuotas mensuales que se muestran aquí hasta que terminas de pagar.',
-    items:['Cada línea es una compra, expandible para ver sus cuotas','El botón 📄 permite conciliar con el estado de cuenta del banco','Las cuotas vencidas aparecen marcadas en amarillo']
+    desc:'Seguimiento de compras a meses por tarjeta. Cada compra genera cuotas mensuales que aparecen aquí hasta liquidarlas completamente.',
+    items:['Toca una tarjeta para ver sus cuotas activas','El botón 📄 concilia con el estado de cuenta del banco','Las cuotas que vencen este mes aparecen en el resumen del home']
+  },
+  presupuesto:{
+    titulo:'Presupuesto del mes',
+    desc:'Muestra cuánto te queda para gastar este mes. El objetivo se calcula automáticamente sumando los límites de tus categorías activas.',
+    items:['El objetivo = suma de límites de todas tus categorías','El gastado incluye gastos registrados + cuotas TDC que vencen este mes','Las categorías sin límite aparecen con ⚠️ — configúralas en Ajustes']
+  },
+  cuentas:{
+    titulo:'Cuentas y Saldos',
+    desc:'Tus cuentas de débito, ahorro y efectivo. El saldo se actualiza automáticamente con cada gasto registrado.',
+    items:['Agrega tus cuentas reales con el saldo actual','Al confirmar un ingreso puedes distribuirlo entre cuentas y TDC','Las transferencias entre cuentas no afectan el historial de gastos']
+  },
+  inversiones:{
+    titulo:'Mis Inversiones',
+    desc:'Registro de tus instrumentos financieros: CETES, pagarés, fondos y fintech. La proyección se calcula con los parámetros de tu contrato.',
+    items:['Solo tú puedes ver esta sección — privacidad activada por diseño','La barra de progreso muestra cuánto del plazo ha transcurrido','Al vencer, elige mover el dinero a una cuenta o reinvertir']
+  },
+  categorias:{
+    titulo:'Categorías y Límites',
+    desc:'Define cuánto puedes gastar en cada categoría del mes. Los límites forman tu objetivo mensual total.',
+    items:['Cada categoría con límite suma al objetivo del mes','Las categorías sin límite no cuentan en el presupuesto','Puedes pausar una categoría sin eliminarla']
+  },
+  fuentes:{
+    titulo:'Fuentes de Ingreso',
+    desc:'Ingresos recurrentes: nómina, honorarios, rentas. La app te recuerda confirmarlos cuando llega su fecha.',
+    items:['Al confirmar un ingreso se abre el repartidor para distribuirlo','Puedes tener múltiples fuentes con diferentes periodicidades','Las fuentes pausadas no generan recordatorios']
+  },
+  metodos:{
+    titulo:'Métodos de Pago',
+    desc:'Formas de pago para tus gastos de débito y efectivo. Las tarjetas de crédito se configuran en Fuentes y Tarjetas.',
+    items:['Agrega tus cuentas de débito y efectivo aquí','Las TDC (crédito) van en la sección Fuentes y Tarjetas, no aquí','El método seleccionado aparece en cada registro de gasto']
+  },
+  metas:{
+    titulo:'Metas de Ahorro',
+    desc:'Objetivos de ahorro con seguimiento de avance. Puedes crear metas por evento, reto o ahorro libre.',
+    items:['Las metas no afectan el presupuesto mensual — son independientes','Puedes aportar manualmente el avance cuando quieras','Crea metas de tipo Evento (vacaciones), Reto (no gastar en X) o Ahorro libre']
+  },
+  gasto:{
+    titulo:'Registrar Gasto',
+    desc:'Captura un gasto manualmente. Selecciona la categoría, el monto, la fecha y el método de pago.',
+    items:['La categoría preseleccionada es la última que usaste','Escanea un ticket con 📷 para llenar los datos automáticamente','El campo "¿En qué gastaste?" es opcional pero ayuda a identificar el gasto']
   }
 };
+function mostrarAyudaSeccion(seccion){
+  mostrarAyudaTab(seccion);
+}
 function mostrarAyudaTab(tab){
   const info=_AYUDA_TABS[tab];
   if(!info)return;
@@ -4532,7 +4705,7 @@ function renderCuentasTab(){
   el.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
       <div>
-        <div style="font-size:11px;color:var(--muted);font-family:sans-serif;letter-spacing:.5px;text-transform:uppercase">Total disponible</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="font-size:11px;color:var(--muted);font-family:sans-serif;letter-spacing:.5px;text-transform:uppercase">Total disponible</div><span onclick="mostrarAyudaTab('cuentas')" style="font-size:10px;color:var(--muted);cursor:pointer;opacity:.5;padding:2px 5px;border-radius:50%;border:0.5px solid var(--border)">?</span></div>
         <div style="font-size:26px;font-weight:700;color:var(--text);font-family:sans-serif">${fmxn(total)}</div>
       </div>
       <button onclick="abrirModalCuenta()" style="background:none;border:1px solid var(--border);border-radius:12px;padding:7px 14px;font-size:13px;font-family:sans-serif;color:var(--p);cursor:pointer">＋ Nueva</button>
@@ -5147,20 +5320,20 @@ function renderSettings(){
       <div class="form-group"><label class="form-label">Ingreso mensual Casa</label><input type="number" class="form-input" id="settings-casa-ingreso" value="${gls('casa_config')?.ingreso||44500}" inputmode="decimal" style="font-size:15px"></div>
       <button class="btn-submit" onclick="saveCasaConfig()" style="margin-top:0">Guardar ingreso Casa</button>
     </div>`:''}
-    <div class="settings-section"><div class="settings-title">Métodos de pago y tarjetas</div>
+    <div class="settings-section"><div class="settings-title" style="display:flex;align-items:center;justify-content:space-between">Métodos de pago y tarjetas<span onclick="mostrarAyudaTab('metodos')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 7px;border-radius:10px;border:0.5px solid var(--border);font-weight:400;margin-left:8px">?</span></div>
       <div style="font-size:11px;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:12px">${isCasa?'Compartidos entre todos en esta cuenta. ':''}Gestiona tus formas de pago, fuentes de ingreso y tarjetas de crédito en un solo lugar.</div>
       <div style="margin-bottom:10px">
         <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Débito y efectivo</div>
         <div class="chip-grid">${getPagos().map((p,i)=>`<div class="chip-big active"><span class="ce">💳</span><span class="cn">${p}</span><span class="chip-del" onclick="event.stopPropagation();removePago(${i})">✕</span></div>`).join('')}<div class="chip-big chip-add" onclick="addPago()"><span class="ce">＋</span><span class="cn">Agregar</span></div></div>
       </div>
-      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif;margin-bottom:8px">Fuentes de ingreso y tarjetas de crédito</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Helvetica Neue',sans-serif">Fuentes de ingreso y tarjetas de crédito</div><span onclick="mostrarAyudaTab('fuentes')" style="font-size:10px;color:var(--muted);cursor:pointer;opacity:.5;padding:2px 5px;border-radius:50%;border:0.5px solid var(--border)">?</span></div>
       <button class="btn-submit" onclick="abrirGestionFinanzas()" style="margin-top:0">Administrar fuentes y tarjetas</button>
     </div>
     ${!isCasa?`
     <div class="settings-section"><div class="settings-title">Gastos fijos</div>
       <div class="chip-grid">${(cfg.fijos||[]).map((f,i)=>`<div class="chip-big active" onclick="openFijoModal(${i})"><span class="ce">${f.e}</span><span class="cn">${escapeHtml(f.l)}</span><span class="ca">${fmxn(f.monto)}</span></div>`).join('')}<div class="chip-big chip-add" onclick="openFijoModal()"><span class="ce">＋</span><span class="cn">Agregar</span></div></div>
     </div>
-    <div class="settings-section"><div class="settings-title">Categorías</div>
+    <div class="settings-section"><div class="settings-title" style="display:flex;align-items:center;justify-content:space-between">Categorías<span onclick="mostrarAyudaTab('categorias')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 7px;border-radius:10px;border:0.5px solid var(--border);font-weight:400;margin-left:8px">?</span></div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
         ${(cfg.categorias||[]).map((c,i)=>`
         <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;opacity:${c.active===false?'0.5':'1'}">
@@ -5181,10 +5354,10 @@ function renderSettings(){
       </div>
       <button onclick="openCatModal()" style="width:100%;border:1.5px dashed var(--border);background:none;border-radius:12px;padding:12px;font-size:13px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);cursor:pointer">＋ Nueva categoría</button>
     </div>
-    <div class="settings-section"><div class="settings-title">Límites del mes</div>
+    <div class="settings-section"><div class="settings-title" style="display:flex;align-items:center;justify-content:space-between">Límites del mes<span onclick="mostrarAyudaTab('categorias')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 7px;border-radius:10px;border:0.5px solid var(--border);font-weight:400;margin-left:8px">?</span></div>
       <button class="btn-secondary" onclick="abrirEditorLimites()">📊 Editar límites de ${getMesNombre()}</button>
     </div>
-    <div class="settings-section"><div class="settings-title">🎯 Metas de ahorro</div>
+    <div class="settings-section"><div class="settings-title" style="display:flex;align-items:center;justify-content:space-between">🎯 Metas de ahorro<span onclick="mostrarAyudaTab('metas')" style="font-size:11px;color:var(--muted);cursor:pointer;padding:2px 7px;border-radius:10px;border:0.5px solid var(--border);font-weight:400;margin-left:8px">?</span></div>
       <div id="metas-content-settings" style="margin-bottom:8px"></div>
       <button class="btn-secondary" onclick="abrirNuevaMeta()">＋ Nueva meta</button>
     </div>
@@ -7499,7 +7672,7 @@ function renderSeccionFijos(){const el=document.getElementById('fijos-section');
     if(cob)return{fijo:f,pagado:true,gasto:{monto:cob.monto,fecha:cob.fecha}};
     const g=detectarFijoPagado(f);
     return{fijo:f,pagado:!!g,gasto:g};
-  });const tE=fijos.reduce((s,f)=>s+(f.monto||0),0);const pg=res.filter(r=>r.pagado);const tP=pg.reduce((s,r)=>s+(r.gasto?.monto||r.fijo.monto||0),0);const pc=tE>0?Math.round((tP/tE)*100):0;const hoy=new Date().getDate();const byG={};res.forEach(r=>{const g=r.fijo.grupo||'vivienda';if(!byG[g])byG[g]=[];byG[g].push(r);});let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:sans-serif;color:var(--muted)">Gastos fijos del mes</div><button onclick="abrirCatalogoFijos()" style="font-size:11px;font-family:sans-serif;color:var(--muted);background:none;border:0.5px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer">+ Agregar</button></div><div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px"><button id="fv-mes" onclick="setFijosVista(\'mes\')" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;font-size:12px;font-family:sans-serif;border:none;background:var(--card);color:var(--text);font-weight:500">Mensual</button><button id="fv-anual" onclick="setFijosVista(\'anual\')" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;font-size:12px;font-family:sans-serif;border:none;background:transparent;color:var(--muted)">Anual</button></div><div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><div style="font-size:12px;font-family:sans-serif;color:var(--text)">'+pg.length+' de '+fijos.length+' pagados</div><div style="font-size:13px;font-weight:700;color:var(--acc);font-family:sans-serif"><span class="fv-m" data-b="'+tP+'">'+fmxn(tP)+'</span> <span style="font-weight:400;color:var(--muted);font-size:11px">/ <span class="fv-m" data-b="'+tE+'">'+fmxn(tE)+'</span></span></div></div><div style="height:6px;background:rgba(84,41,22,0.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(pc>=100?'var(--success)':'var(--s)')+';border-radius:3px;transition:width 0.4s"></div></div></div>';GRUPOS_FIJOS.forEach(gr=>{const its=byG[gr.id];if(!its||!its.length)return;const pn=its.filter(r=>!r.pagado);const tG=its.reduce((s,r)=>s+(r.fijo.monto||0),0);h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden"><div onclick="togGrupoFijo(\'gf_'+gr.id+'\')" style="display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer"><span style="font-size:16px;width:22px;text-align:center;flex-shrink:0">'+gr.e+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif">'+gr.l+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+its.length+' concepto'+(its.length>1?'s':'')+(pn.length?' <span style="background:rgba(210,160,60,0.15);color:var(--s);padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;margin-left:4px">'+pn.length+' pend.</span>':'')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif" class="fv-m" data-b="'+tG+'">'+fmxn(tG)+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif" class="fv-p">/mes</div></div><span style="font-size:14px;color:var(--muted);transition:transform .2s;flex-shrink:0" id="gf_'+gr.id+'_a">▾</span></div><div id="gf_'+gr.id+'_b" style="display:none;border-top:1px solid var(--border)">';its.forEach(r=>{const f=r.fijo,g=r.gasto,nm=f.nombre||f.l||'',esp=f.monto||0,rl=g?.monto||0,df=esp>0&&r.pagado?(rl-esp):0,vc=!r.pagado&&f.diaMes&&hoy>f.diaMes,porVencer=!r.pagado&&!vc&&f.diaMes&&(f.diaMes-hoy)<=3&&(f.diaMes-hoy)>=0,fi=getFijosDelMes().findIndex(x=>(x.id||x.l)===(f.id||f.l));if(r.pagado){h+='<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--border);opacity:0.7"><div style="width:5px;height:5px;border-radius:50%;background:var(--success);flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif">'+nm+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+fmxn(rl)+' pagado'+(g?.fecha?' · '+g.fecha:'')+'</div></div><div style="flex-shrink:0">'+(df>0?'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(161,58,30,0.1);color:var(--danger);font-weight:500">+'+fmxn(df)+'</span>':df<0?'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(60,160,80,0.1);color:var(--success);font-weight:500">'+fmxn(Math.abs(df))+' menos</span>':'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(60,160,80,0.1);color:var(--success);font-weight:500">Igual</span>')+'</div></div>';}else{h+='<div onclick="registrarDesdeSeccionFijo('+fi+')" style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer"><div style="width:5px;height:5px;border-radius:50%;background:'+(vc?'var(--danger)':'var(--s)')+';flex-shrink:0;'+(porVencer?'box-shadow:0 0 0 3px rgba(210,160,60,0.2)':'')+'"></div><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif">'+nm+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+(f.variable?'Variable':fmxn(esp))+(f.frecuencia==='personalizado'?' · Cada '+(f.periodoMeses||'?')+' meses':(FREQ_LABELS[f.frecuencia]&&FREQ_LABELS[f.frecuencia]!=='Mensual'?' · '+FREQ_LABELS[f.frecuencia]:''))+(vc?' · <span style="color:var(--danger)">Vencido</span>':porVencer?' · <span style="color:var(--s)">Vence en '+(f.diaMes-hoy)+' día'+((f.diaMes-hoy)!==1?'s':'')+'</span>':'')+'</div></div><span style="font-size:11px;color:var(--s);font-family:sans-serif;font-weight:500;flex-shrink:0">Registrar →</span></div>';}});h+='</div></div>';});el.innerHTML=h;}
+  });const tE=fijos.reduce((s,f)=>s+(f.monto||0),0);const pg=res.filter(r=>r.pagado);const tP=pg.reduce((s,r)=>s+(r.gasto?.monto||r.fijo.monto||0),0);const pc=tE>0?Math.round((tP/tE)*100):0;const hoy=new Date().getDate();const byG={};res.forEach(r=>{const g=r.fijo.grupo||'vivienda';if(!byG[g])byG[g]=[];byG[g].push(r);});let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px"><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:sans-serif;color:var(--muted)">Gastos fijos del mes</div><span onclick="mostrarAyudaTab(\'fijos\')" style="font-size:10px;color:var(--muted);cursor:pointer;opacity:.5;padding:2px 5px;border-radius:50%;border:0.5px solid var(--border)">?</span></div><button onclick="abrirCatalogoFijos()" style="font-size:11px;font-family:sans-serif;color:var(--muted);background:none;border:0.5px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer">+ Agregar</button></div><div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px"><button id="fv-mes" onclick="setFijosVista(\'mes\')" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;font-size:12px;font-family:sans-serif;border:none;background:var(--card);color:var(--text);font-weight:500">Mensual</button><button id="fv-anual" onclick="setFijosVista(\'anual\')" style="flex:1;text-align:center;padding:5px 0;cursor:pointer;font-size:12px;font-family:sans-serif;border:none;background:transparent;color:var(--muted)">Anual</button></div><div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><div style="font-size:12px;font-family:sans-serif;color:var(--text)">'+pg.length+' de '+fijos.length+' pagados</div><div style="font-size:13px;font-weight:700;color:var(--acc);font-family:sans-serif"><span class="fv-m" data-b="'+tP+'">'+fmxn(tP)+'</span> <span style="font-weight:400;color:var(--muted);font-size:11px">/ <span class="fv-m" data-b="'+tE+'">'+fmxn(tE)+'</span></span></div></div><div style="height:6px;background:rgba(84,41,22,0.08);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pc+'%;background:'+(pc>=100?'var(--success)':'var(--s)')+';border-radius:3px;transition:width 0.4s"></div></div></div>';GRUPOS_FIJOS.forEach(gr=>{const its=byG[gr.id];if(!its||!its.length)return;const pn=its.filter(r=>!r.pagado);const tG=its.reduce((s,r)=>s+(r.fijo.monto||0),0);h+='<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;overflow:hidden"><div onclick="togGrupoFijo(\'gf_'+gr.id+'\')" style="display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer"><span style="font-size:16px;width:22px;text-align:center;flex-shrink:0">'+gr.e+'</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif">'+gr.l+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+its.length+' concepto'+(its.length>1?'s':'')+(pn.length?' <span style="background:rgba(210,160,60,0.15);color:var(--s);padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;margin-left:4px">'+pn.length+' pend.</span>':'')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:500;color:var(--text);font-family:sans-serif" class="fv-m" data-b="'+tG+'">'+fmxn(tG)+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif" class="fv-p">/mes</div></div><span style="font-size:14px;color:var(--muted);transition:transform .2s;flex-shrink:0" id="gf_'+gr.id+'_a">▾</span></div><div id="gf_'+gr.id+'_b" style="display:none;border-top:1px solid var(--border)">';its.forEach(r=>{const f=r.fijo,g=r.gasto,nm=f.nombre||f.l||'',esp=f.monto||0,rl=g?.monto||0,df=esp>0&&r.pagado?(rl-esp):0,vc=!r.pagado&&f.diaMes&&hoy>f.diaMes,porVencer=!r.pagado&&!vc&&f.diaMes&&(f.diaMes-hoy)<=3&&(f.diaMes-hoy)>=0,fi=getFijosDelMes().findIndex(x=>(x.id||x.l)===(f.id||f.l));if(r.pagado){h+='<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--border);opacity:0.7"><div style="width:5px;height:5px;border-radius:50%;background:var(--success);flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif">'+nm+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+fmxn(rl)+' pagado'+(g?.fecha?' · '+g.fecha:'')+'</div></div><div style="flex-shrink:0">'+(df>0?'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(161,58,30,0.1);color:var(--danger);font-weight:500">+'+fmxn(df)+'</span>':df<0?'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(60,160,80,0.1);color:var(--success);font-weight:500">'+fmxn(Math.abs(df))+' menos</span>':'<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(60,160,80,0.1);color:var(--success);font-weight:500">Igual</span>')+'</div></div>';}else{h+='<div onclick="registrarDesdeSeccionFijo('+fi+')" style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer"><div style="width:5px;height:5px;border-radius:50%;background:'+(vc?'var(--danger)':'var(--s)')+';flex-shrink:0;'+(porVencer?'box-shadow:0 0 0 3px rgba(210,160,60,0.2)':'')+'"></div><div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text);font-family:sans-serif">'+nm+'</div><div style="font-size:11px;color:var(--muted);font-family:sans-serif">'+(f.variable?'Variable':fmxn(esp))+(f.frecuencia==='personalizado'?' · Cada '+(f.periodoMeses||'?')+' meses':(FREQ_LABELS[f.frecuencia]&&FREQ_LABELS[f.frecuencia]!=='Mensual'?' · '+FREQ_LABELS[f.frecuencia]:''))+(vc?' · <span style="color:var(--danger)">Vencido</span>':porVencer?' · <span style="color:var(--s)">Vence en '+(f.diaMes-hoy)+' día'+((f.diaMes-hoy)!==1?'s':'')+'</span>':'')+'</div></div><span style="font-size:11px;color:var(--s);font-family:sans-serif;font-weight:500;flex-shrink:0">Registrar →</span></div>';}});h+='</div></div>';});el.innerHTML=h;}
 let _fijoRegistrando=null;
 function registrarDesdeSeccionFijo(idx){
   const fijos=getFijosDelMes();const f=fijos[idx];if(!f)return;
@@ -7621,6 +7794,7 @@ if(savedUser){
   }else{
     showHome();
   }
+  initDarkMode();
   afterLogin();        // async en background, actualiza datos cuando llegan
 }
 // ── Service Worker: actualización agresiva ──
@@ -7854,7 +8028,7 @@ function mostrarAvisoNuevaVersion(){
     <button onclick="cerrarOverlayInversiones()" style="background:none;border:none;color:rgba(254,250,240,0.8);font-size:26px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">‹</button>
     <div style="flex:1">
       <div style="font-size:16px;font-weight:600;color:#fff;font-family:'Helvetica Neue',sans-serif">Mis inversiones</div>
-      <div style="font-size:11px;color:rgba(254,250,240,0.55);font-family:'Helvetica Neue',sans-serif;margin-top:1px">Solo tú puedes ver esta sección</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:1px"><div style="font-size:11px;color:rgba(254,250,240,0.55);font-family:'Helvetica Neue',sans-serif">Solo tú puedes ver esta sección</div><span onclick="mostrarAyudaTab('inversiones')" style="font-size:10px;color:rgba(254,250,240,0.35);cursor:pointer;padding:2px 5px;border-radius:50%;border:0.5px solid rgba(254,250,240,0.2)">?</span></div>
     </div>
     <button onclick="abrirFormInversion()" style="background:none;border:0.5px solid rgba(254,250,240,0.3);border-radius:10px;padding:6px 12px;color:rgba(254,250,240,0.9);font-size:13px;font-family:'Helvetica Neue',sans-serif;cursor:pointer">＋ Nueva</button>
   </div>
