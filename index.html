@@ -292,7 +292,9 @@ body{font-family:'Georgia',serif;background:var(--bg);color:var(--text);min-heig
 .nav-bottom-item .nb-dot{position:absolute;top:8px;right:calc(50% - 14px);width:6px;height:6px;border-radius:50%;background:var(--danger);display:none}
 .nav-bottom-item .nb-dot.show{display:block}
 .nav-fab{position:static;height:0}
-.fab-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(64px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;background:var(--p);border:none;color:var(--bg);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;box-shadow:0 2px 8px rgba(84,41,22,0.25)}
+.nav-hueco{width:64px;flex-shrink:0}
+.fab-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(30px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;background:var(--p);border:4px solid var(--card);color:var(--bg);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;box-shadow:0 2px 8px rgba(84,41,22,0.25)}
+.nav-bottom-item .nb-lbl{font-size:10px;line-height:1.1;text-align:center}
 
 /* ── Modo nocturno ── */
 body.dark-mode{color-scheme:dark}
@@ -529,12 +531,6 @@ body.dark-mode select,body.dark-mode input[type=date],body.dark-mode input[type=
       <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">Historial completo</div>
       <button onclick="abrirExportHistorial()" style="font-size:11px;font-family:'Helvetica Neue',sans-serif;color:var(--muted);background:none;border:0.5px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer">📥 Exportar</button>
     </div>
-    <div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
-      <button id="hv-tab-gastos" onclick="setHistorialVista('gastos')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:var(--card);color:var(--text);font-weight:600">Gastos <span onclick="event.stopPropagation();mostrarAyudaTab('gastos')" style="font-size:10px;opacity:.5;cursor:pointer">?</span></button>
-      <button id="hv-tab-fijos" onclick="setHistorialVista('fijos')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:transparent;color:var(--muted)">Fijos <span onclick="event.stopPropagation();mostrarAyudaTab('fijos')" style="font-size:10px;opacity:.5;cursor:pointer">?</span></button>
-      <button id="hv-tab-tarjetas" onclick="setHistorialVista('tarjetas')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:transparent;color:var(--muted)">Tarjetas <span onclick="event.stopPropagation();mostrarAyudaTab('tarjetas')" style="font-size:10px;opacity:.5;cursor:pointer">?</span></button>
-    </div>
-
     <div id="hv-gastos">
       <div class="busq-wrap">
         <span class="busq-icon">🔍</span>
@@ -554,14 +550,24 @@ body.dark-mode select,body.dark-mode input[type=date],body.dark-mode input[type=
       </div>
     </div>
 
-    <div id="hv-fijos" style="display:none">
+  </div>
+  <!-- TAB POR PAGAR -->
+  <div id="tab-pagar" class="tab-panel" style="padding:14px 14px calc(84px + env(safe-area-inset-bottom,0px))">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:'Helvetica Neue',sans-serif;color:var(--muted)">Compromisos del mes</div>
+    </div>
+    <div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px">
+      <button id="pv-tab-fijos" onclick="setPagarVista('fijos')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:var(--card);color:var(--text);font-weight:600">Fijos <span onclick="event.stopPropagation();mostrarAyudaTab('fijos')" style="font-size:10px;opacity:.5;cursor:pointer">?</span></button>
+      <button id="pv-tab-tarjetas" onclick="setPagarVista('tarjetas')" style="flex:1;text-align:center;padding:8px 0;cursor:pointer;font-size:13px;font-family:'Helvetica Neue',sans-serif;border:none;background:transparent;color:var(--muted)">Tarjetas <span onclick="event.stopPropagation();mostrarAyudaTab('tarjetas')" style="font-size:10px;opacity:.5;cursor:pointer">?</span></button>
+    </div>
+    <div id="pv-fijos">
       <div id="fijos-section"></div>
     </div>
-    <div id="hv-tarjetas" style="display:none">
+    <div id="pv-tarjetas" style="display:none">
       <div id="tarjetas-section"></div>
     </div>
   </div>
-  <!-- TAB METAS -->
+  <!-- TAB CUENTAS -->
   <div id="tab-cuentas" class="tab-panel" style="padding:14px 14px calc(84px + env(safe-area-inset-bottom,0px))">
     <div id="cuentas-content"></div>
   </div>
@@ -571,14 +577,19 @@ body.dark-mode select,body.dark-mode input[type=date],body.dark-mode input[type=
   </div>
   <div class="nav-bottom">
     <button class="nav-bottom-item active" onclick="switchTab('hoy')" id="nbi-hoy">
-      <span class="nb-icon">🏠</span><span>Hoy</span>
+      <span class="nb-icon">🏠</span><span class="nb-lbl">Hoy</span>
     </button>
+    <button class="nav-bottom-item" onclick="switchTab('pagar')" id="nbi-pagar">
+      <span class="nb-icon">💳</span><span class="nb-lbl">Por pagar</span>
+      <span class="nb-dot" id="pagar-badge"></span>
+    </button>
+    <div class="nav-hueco"></div>
     <button class="nav-bottom-item" onclick="switchTab('historial')" id="nbi-historial">
-      <span class="nb-icon">📅</span><span>Historial</span>
+      <span class="nb-icon">📅</span><span class="nb-lbl">Historial</span>
       <span class="nb-dot" id="gastos-badge"></span>
     </button>
     <button class="nav-bottom-item" onclick="switchTab('cuentas')" id="nbi-cuentas">
-      <span class="nb-icon">💼</span><span>Cuentas</span>
+      <span class="nb-icon">💼</span><span class="nb-lbl">Cuentas</span>
     </button>
   </div>
 
@@ -1040,7 +1051,7 @@ if(_debugActivo)setTimeout(_dbgMostrarUI,800);
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycby4IA__Z1rmcwSQfOOF1QDmu9o47RqXlrKD010k-kN8CJNckqiSIjH6wb6NPYuVLyX7WQ/exec';
 const TOKEN        = 'Theend.01';
-const APP_REV      = 'Rev 96';  // ← incrementar en cada cambio publicado
+const APP_REV      = 'Rev 97';  // ← incrementar en cada cambio publicado
 const ADMIN_EMAILS = ['fabriciouriasg@gmail.com','vanessav2122@gmail.com'];
 const GOOGLE_CLIENT_ID = '142679968235-ij3dcqsqkpu5bdvfb0gfimh3ami6frgq.apps.googleusercontent.com';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1682,10 +1693,11 @@ function switchTab(t){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   const panel=document.getElementById('tab-'+t);if(panel)panel.classList.add('active');
   document.querySelectorAll('.nav-bottom-item').forEach(el=>el.classList.remove('active'));
-  const map={hoy:'nbi-hoy',historial:'nbi-historial',cuentas:'nbi-cuentas'};
+  const map={hoy:'nbi-hoy',pagar:'nbi-pagar',historial:'nbi-historial',cuentas:'nbi-cuentas'};
   const nb=document.getElementById(map[t]);if(nb)nb.classList.add('active');
   // Renderizar el tab activo
   if(t==='hoy') _renderHoyContent();
+  else if(t==='pagar') setPagarVista(_pagarVista);
   else if(t==='historial'){
     // Los meses anteriores ya cargados se conservan (son datos cerrados, no cambian).
     // Se invalidan explícitamente vía invalidarHistorial() cuando se edita/borra un gasto pasado.
@@ -1700,6 +1712,7 @@ function renderAll(){
   // Historial y Metas solo si su tab está activo (evita doble fetch)
   if(activeTab==='historial') _renderHistorialContent();
   initBuscador();
+  if(activeTab==='pagar') setPagarVista(_pagarVista);
   if(activeTab==='cuentas') renderCuentasTab();
 }
 
@@ -1825,7 +1838,7 @@ function renderSaldoCard(){
 
   html+=`<div style="display:flex;gap:8px">
     <button onclick="abrirRegistrarIngreso()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">+ Ingreso</button>
-    <button onclick="abrirDetalleComprometido()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">⏳ TDC del mes</button>
+    <button onclick="switchTab('pagar');setPagarVista('tarjetas')" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;font-family:sans-serif;color:var(--text);cursor:pointer">⏳ TDC del mes ›</button>
   </div></div>`;
   el.innerHTML=html;
 }
@@ -1952,6 +1965,13 @@ function _renderHoyContent(){
   // Badge pendientes en tab Historial
   const q=gq(currentAcct);
   const badge=document.getElementById('gastos-badge');if(badge)badge.classList.toggle('show',q.length>0);
+  // Punto rojo en Por pagar si hay cuotas TDC vencidas sin pagar
+  try{
+    const mesHoy=tdcMesActual();
+    const vencidas=getTDCMovs().filter(m=>!m.pagada&&m.pagoParcial===0&&m.fechaVence&&m.fechaVence<mesHoy+'-01');
+    const pb=document.getElementById('pagar-badge');
+    if(pb)pb.classList.toggle('show',vencidas.length>0);
+  }catch(e){}
   const pb=document.getElementById('pending-banner');if(pb){
     if(q.length){pb.classList.add('show');const pt=document.getElementById('pending-text');if(pt)pt.textContent=`${q.length} gasto${q.length>1?'s':''} pendiente${q.length>1?'s':''} de sincronizar`;}
     else pb.classList.remove('show');
@@ -2134,22 +2154,24 @@ function limpiarBusqueda(){
   document.getElementById('busq-results').style.display='none';
   mostrarHistorialNormal(true);
 }
-let _historialVista='gastos';
-function setHistorialVista(v){
-  _historialVista=v;
-  document.getElementById('hv-gastos').style.display=v==='gastos'?'block':'none';
-  document.getElementById('hv-fijos').style.display=v==='fijos'?'block':'none';
-  document.getElementById('hv-tarjetas').style.display=v==='tarjetas'?'block':'none';
-  const tabs={gastos:'hv-tab-gastos',fijos:'hv-tab-fijos',tarjetas:'hv-tab-tarjetas'};
+// Sub-vistas del tab Por pagar. Historial ya no tiene sub-vistas: solo gastos.
+let _pagarVista='fijos';
+function setPagarVista(v){
+  _pagarVista=v||'fijos';
+  const fj=document.getElementById('pv-fijos');
+  const tj=document.getElementById('pv-tarjetas');
+  if(fj)fj.style.display=_pagarVista==='fijos'?'block':'none';
+  if(tj)tj.style.display=_pagarVista==='tarjetas'?'block':'none';
+  const tabs={fijos:'pv-tab-fijos',tarjetas:'pv-tab-tarjetas'};
   Object.entries(tabs).forEach(([key,id])=>{
     const b=document.getElementById(id);if(!b)return;
-    const act=key===v;
+    const act=key===_pagarVista;
     b.style.background=act?'var(--card)':'transparent';
     b.style.color=act?'var(--text)':'var(--muted)';
     b.style.fontWeight=act?'600':'400';
   });
-  if(v==='fijos')renderSeccionFijos();
-  if(v==='tarjetas')renderSeccionTarjetas();
+  if(_pagarVista==='fijos')renderSeccionFijos();
+  if(_pagarVista==='tarjetas')renderSeccionTarjetas();
 }
 function toggleComparativa(){
   const cont=document.getElementById('comparativa-container');
@@ -3848,9 +3870,10 @@ async function concConfirmarImportacion(){
 }
 
 function concVerHistorial(){
-  const vista=_concTipo==='credito'?'tarjetas':'gastos';
+  const esCredito=_concTipo==='credito';
   cerrarConciliacion();
-  setHistorialVista(vista);
+  if(esCredito){switchTab('pagar');setPagarVista('tarjetas');}
+  else switchTab('historial');
 }
 function _concRenderResultado(res){
   const nMSI=(_concResultado?.movimientos||[]).filter(m=>_concDecisiones[m._id]==='importar'&&m.esMSI).length;
